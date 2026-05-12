@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -331,7 +331,7 @@ export function SalaryManager({ salaryRecords, profiles, attendance }: SalaryMan
     [filtered]
   );
 
-  async function handleMarkPaid(id: string) {
+  const handleMarkPaid = useCallback(async (id: string) => {
     setLoadingId(id);
     const result = await markSalaryPaidAction(id);
     setLoadingId(null);
@@ -341,9 +341,9 @@ export function SalaryManager({ salaryRecords, profiles, attendance }: SalaryMan
     } else {
       toast.error(result.error);
     }
-  }
+  }, [router]);
 
-  async function handleDelete(id: string) {
+  const handleDelete = useCallback(async (id: string) => {
     setLoadingId(id);
     const result = await deleteSalaryRecordAction(id);
     setLoadingId(null);
@@ -353,7 +353,7 @@ export function SalaryManager({ salaryRecords, profiles, attendance }: SalaryMan
     } else {
       toast.error(result.error);
     }
-  }
+  }, [router]);
 
   function handleExport() {
     const header = ["Employee", "Email", "Month", "Working Days", "Present Days", "Base Salary", "Bonus", "Deductions", "Final Salary", "Status"];

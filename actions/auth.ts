@@ -50,7 +50,12 @@ export async function loginAction(
 
   const supabase = await createClient();
 
-  const { error: signInError } = await supabase.auth.signInWithPassword({
+  // signInWithPassword validates credentials with the Supabase auth server and
+  // returns the verified user object directly — no second getUser() round-trip needed.
+  const {
+    data: { user },
+    error: signInError,
+  } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
     password: parsed.data.password,
   });
@@ -59,16 +64,13 @@ export async function loginAction(
     return { success: false, error: signInError.message };
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   if (!user) {
     return { success: false, error: "Authentication failed. Please try again." };
   }
 
-  // Use service-role client so the profile lookup bypasses RLS.
-  // The user identity has already been verified above by getUser().
+  // Service-role client bypasses RLS for the profile lookup.
+  // The anon client cannot read the profile after sign-in because the session
+  // token lands in the *response* cookies while getAll() reads *request* cookies.
   const admin = createAdminClient();
 
   const { data: profile, error: profileError } = await admin

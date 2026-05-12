@@ -27,57 +27,46 @@ export default async function HRDashboard() {
 
   if (!user) redirect("/login");
 
-  // Fetch current user's profile + role check
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile) redirect("/login");
-
-  const userProfile = profile as UserProfile;
-  const role = userProfile.role as Role;
-
-  // Only hr_finance and admin may access this page
-  if (role !== "hr_finance" && role !== "admin") {
-    redirect("/employee");
-  }
-
-  // ── Parallel data fetching ─────────────────────────────────
-  const currentMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
-  const today = new Date().toISOString().slice(0, 10);       // "YYYY-MM-DD"
+  // ── Date helpers (before Promise.all — used in query filters) ─
+  const now = new Date();
+  const currentMonth = now.toISOString().slice(0, 7); // "YYYY-MM"
+  const today = now.toISOString().slice(0, 10);       // "YYYY-MM-DD"
 
   // Attendance window: first day of 5 months ago → covers 6 rolling months.
-  // This gives the salary form enough data to auto-fill present_days for any
-  // month in that window, and lets HR browse/filter older records.
   const sixMonthsAgoStart = (() => {
-    const d = new Date();
+    const d = new Date(now);
     d.setMonth(d.getMonth() - 5);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
   })();
 
-  const [profilesResult, attendanceResult, leavesResult, salaryResult] =
+  // ── All queries in one parallel batch (profile + data) ───────
+  // Profile and all data queries run together — saves one sequential RTT vs.
+  // the old pattern of fetching the profile first, then starting the data.
+  const [profileResult, profilesResult, attendanceResult, leavesResult, salaryResult] =
     await Promise.all([
-      // All employee profiles (fixed HR RLS policy via get_my_role())
+      // Current user's profile (for role check)
+      supabase.from("profiles").select("*").eq("id", user.id).single(),
+
+      // All active employee profiles (fixed HR RLS policy via get_my_role())
       supabase
         .from("profiles")
         .select("*")
         .eq("is_active", true)
         .order("full_name", { ascending: true }),
 
-      // Attendance for last 6 months (was: current month only)
+      // Attendance for last 6 months
       supabase
         .from("attendance")
         .select("*")
         .gte("attendance_date", sixMonthsAgoStart)
         .order("attendance_date", { ascending: false }),
 
-      // All leave requests
+      // Leave requests — capped at 500 to bound payload size
       supabase
         .from("leave_requests")
         .select("*")
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false })
+        .limit(500),
 
       // All salary records
       supabase
@@ -85,6 +74,15 @@ export default async function HRDashboard() {
         .select("*")
         .order("month", { ascending: false }),
     ]);
+
+  if (!profileResult.data) redirect("/login");
+  const userProfile = profileResult.data as UserProfile;
+  const role = userProfile.role as Role;
+
+  // Only hr_finance and admin may access this page
+  if (role !== "hr_finance" && role !== "admin") {
+    redirect("/employee");
+  }
 
   const allProfiles = (profilesResult.data ?? []) as UserProfile[];
   const rawAttendance = (attendanceResult.data ?? []) as AttendanceRecord[];
@@ -135,7 +133,6 @@ export default async function HRDashboard() {
   };
 
   // ── Monthly payroll chart data (last 6 months) ─────────────
-  const now = new Date();
   const monthlyPayrollData: MonthlyPayrollPoint[] = Array.from(
     { length: 6 },
     (_, i) => {

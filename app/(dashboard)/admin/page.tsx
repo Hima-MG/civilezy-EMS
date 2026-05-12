@@ -68,20 +68,7 @@ export default async function AdminDashboard() {
 
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile) redirect("/login");
-
-  const userProfile = profile as UserProfile;
-  const role = userProfile.role as Role;
-
-  if (role !== "admin") redirect("/employee");
-
-  // ── Date helpers ───────────────────────────────────────────
+  // ── Date helpers (before Promise.all — used in query filters) ─
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
   const currentMonth = now.toISOString().slice(0, 7);
@@ -93,41 +80,58 @@ export default async function AdminDashboard() {
   })();
   const sixMonthsAgoKey = sixMonthsAgoStart.slice(0, 7);
 
-  // ── Parallel data fetching ─────────────────────────────────
+  // ── All queries in one parallel batch (profile + data) ───────
+  // Profile and all data queries run together — saves one sequential RTT vs.
+  // the old pattern of fetching the profile first, then starting the data.
   const [
+    profileResult,
     profilesResult,
     attendanceResult,
     leavesResult,
     salaryResult,
     leadsResult,
   ] = await Promise.all([
+    // Current user's profile (for role check)
+    supabase.from("profiles").select("*").eq("id", user.id).single(),
+
     supabase
       .from("profiles")
       .select("*")
       .order("created_at", { ascending: false }),
 
+    // Only columns used by analytics — skips punch_out, total_hours
     supabase
       .from("attendance")
-      .select("*")
+      .select("id, user_id, attendance_date, punch_in, status, created_at")
       .gte("attendance_date", sixMonthsAgoStart)
       .order("attendance_date", { ascending: false }),
 
+    // Leave requests — capped at 500 to bound payload size
     supabase
       .from("leave_requests")
       .select("*")
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false })
+      .limit(500),
 
+    // Only columns used by analytics — skips base_salary, bonus, deductions, etc.
     supabase
       .from("salary_records")
-      .select("*")
+      .select("id, user_id, month, final_salary, status, created_at")
       .gte("month", sixMonthsAgoKey)
       .order("created_at", { ascending: false }),
 
+    // Only columns used by analytics — skips email, phone
     supabase
       .from("leads")
-      .select("*")
+      .select("id, name, course_interest, source, status, created_by, created_at")
       .order("created_at", { ascending: false }),
   ]);
+
+  if (!profileResult.data) redirect("/login");
+  const userProfile = profileResult.data as UserProfile;
+  const role = userProfile.role as Role;
+
+  if (role !== "admin") redirect("/employee");
 
   const allProfiles = (profilesResult.data ?? []) as UserProfile[];
   const rawAttendance = (attendanceResult.data ?? []) as AttendanceRecord[];

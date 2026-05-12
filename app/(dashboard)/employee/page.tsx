@@ -22,17 +22,6 @@ export default async function EmployeeDashboard() {
 
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile) redirect("/login");
-
-  const userProfile = profile as UserProfile;
-  const role = userProfile.role as Role;
-
   // ── Date helpers ──────────────────────────────────────────
   const now = new Date();
   const today = now.toISOString().split("T")[0];
@@ -41,8 +30,9 @@ export default async function EmployeeDashboard() {
   const startOfMonth = `${year}-${month}-01`;
   const startOfYear = `${year}-01-01`;
 
-  // ── Fetch all employee module data in parallel ────────────
+  // ── All queries in one parallel batch (profile + data) ───
   const [
+    profileResult,
     todayAttRes,
     presentDaysRes,
     totalLeavesRes,
@@ -51,6 +41,9 @@ export default async function EmployeeDashboard() {
     leaveHistRes,
     tasksRes,
   ] = await Promise.all([
+    // Current user's profile
+    supabase.from("profiles").select("*").eq("id", user.id).single(),
+
     // Today's attendance record
     supabase
       .from("attendance")
@@ -105,6 +98,10 @@ export default async function EmployeeDashboard() {
       .eq("user_id", user.id)
       .order("created_at", { ascending: false }),
   ]);
+
+  if (!profileResult.data) redirect("/login");
+  const userProfile = profileResult.data as UserProfile;
+  const role = userProfile.role as Role;
 
   // ── Derive summary stats ──────────────────────────────────
   const todayRecord = (todayAttRes.data ?? null) as AttendanceRecord | null;
