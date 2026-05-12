@@ -1,20 +1,25 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Clock, CalendarCheck, FileText, TrendingUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { StatCard } from "@/components/dashboard/stat-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import type { UserProfile, Role } from "@/types";
+import { EmployeeTabs } from "@/components/employee/employee-tabs";
+import type {
+  UserProfile,
+  Role,
+  AttendanceRecord,
+  LeaveRequest,
+  DailyTask,
+} from "@/types";
 
 export const metadata: Metadata = { title: "Employee Dashboard" };
 
 export default async function EmployeeDashboard() {
   const supabase = await createClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
   if (!user) redirect("/login");
 
   const { data: profile } = await supabase
@@ -23,102 +28,116 @@ export default async function EmployeeDashboard() {
     .eq("id", user.id)
     .single();
 
-  const userProfile = profile as UserProfile | null;
-  const role = (userProfile?.role ?? "employee") as Role;
+  if (!profile) redirect("/login");
+
+  const userProfile = profile as UserProfile;
+  const role = userProfile.role as Role;
+
+  // ── Date helpers ──────────────────────────────────────────
+  const now = new Date();
+  const today = now.toISOString().split("T")[0];
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const startOfMonth = `${year}-${month}-01`;
+  const startOfYear = `${year}-01-01`;
+
+  // ── Fetch all employee module data in parallel ────────────
+  const [
+    todayAttRes,
+    presentDaysRes,
+    totalLeavesRes,
+    pendingTasksRes,
+    attendanceHistRes,
+    leaveHistRes,
+    tasksRes,
+  ] = await Promise.all([
+    // Today's attendance record
+    supabase
+      .from("attendance")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("attendance_date", today)
+      .maybeSingle(),
+
+    // Days present this month
+    supabase
+      .from("attendance")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .gte("attendance_date", startOfMonth)
+      .not("punch_in", "is", null),
+
+    // Approved leaves this year
+    supabase
+      .from("leave_requests")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "approved")
+      .gte("from_date", startOfYear),
+
+    // Pending tasks count
+    supabase
+      .from("daily_tasks")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "pending"),
+
+    // Attendance history (last 30 records)
+    supabase
+      .from("attendance")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("attendance_date", { ascending: false })
+      .limit(30),
+
+    // Leave history (latest 20)
+    supabase
+      .from("leave_requests")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(20),
+
+    // All tasks
+    supabase
+      .from("daily_tasks")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  // ── Derive summary stats ──────────────────────────────────
+  const todayRecord = (todayAttRes.data ?? null) as AttendanceRecord | null;
+
+  const presentDays = presentDaysRes.count ?? 0;
+  const totalLeaves = totalLeavesRes.count ?? 0;
+  const pendingTasks = pendingTasksRes.count ?? 0;
+
+  const todayHours =
+    todayRecord?.total_hours != null
+      ? `${todayRecord.total_hours}h`
+      : todayRecord?.punch_in
+      ? "In progress"
+      : "—";
+
+  const attendanceHistory = (attendanceHistRes.data ?? []) as AttendanceRecord[];
+  const leaveHistory = (leaveHistRes.data ?? []) as LeaveRequest[];
+  const tasks = (tasksRes.data ?? []) as DailyTask[];
 
   return (
     <DashboardLayout
       profile={userProfile}
       role={role}
       title="My Dashboard"
-      description={`Welcome back, ${userProfile?.full_name?.split(" ")[0] ?? "there"}`}
+      description={`Welcome back, ${userProfile.full_name?.split(" ")[0] ?? "there"}`}
     >
-      <div className="space-y-6">
-        {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            title="Days Present"
-            value="21"
-            description="This month"
-            icon={CalendarCheck}
-            trend={{ value: 5, label: "vs last month" }}
-          />
-          <StatCard
-            title="Hours Logged"
-            value="168"
-            description="This month"
-            icon={Clock}
-            trend={{ value: 2.3, label: "vs last month" }}
-          />
-          <StatCard
-            title="Leaves Remaining"
-            value="12"
-            description="Out of 24 annual"
-            icon={FileText}
-          />
-          <StatCard
-            title="Performance"
-            value="94%"
-            description="Current quarter"
-            icon={TrendingUp}
-            trend={{ value: 8, label: "vs last quarter" }}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Recent Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Recent Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[
-                  { action: "Checked in", time: "09:02 AM", date: "Today", status: "success" },
-                  { action: "Leave approved", time: "Yesterday", date: "May 10", status: "success" },
-                  { action: "Task completed", time: "2 days ago", date: "May 9", status: "default" },
-                  { action: "Payslip generated", time: "May 1", date: "May 1", status: "secondary" },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center justify-between py-1.5 border-b last:border-0">
-                    <div>
-                      <p className="text-sm font-medium">{item.action}</p>
-                      <p className="text-xs text-muted-foreground">{item.date}</p>
-                    </div>
-                    <Badge variant={item.status as "default" | "secondary" | "outline"} className="text-xs">
-                      {item.time}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Upcoming */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Upcoming</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[
-                  { title: "Team standup", date: "Today, 10:00 AM", type: "Meeting" },
-                  { title: "Q2 review submission", date: "May 15, 2026", type: "Deadline" },
-                  { title: "Annual performance review", date: "May 20, 2026", type: "Review" },
-                  { title: "Salary credit", date: "May 31, 2026", type: "Finance" },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center justify-between py-1.5 border-b last:border-0">
-                    <div>
-                      <p className="text-sm font-medium">{item.title}</p>
-                      <p className="text-xs text-muted-foreground">{item.date}</p>
-                    </div>
-                    <Badge variant="outline" className="text-xs">{item.type}</Badge>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <EmployeeTabs
+        todayRecord={todayRecord}
+        attendanceHistory={attendanceHistory}
+        leaveHistory={leaveHistory}
+        tasks={tasks}
+        stats={{ presentDays, totalLeaves, todayHours, pendingTasks }}
+      />
     </DashboardLayout>
   );
 }

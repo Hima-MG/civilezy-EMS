@@ -1,18 +1,11 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import type { Role, UserProfile } from "@/types";
-
-export default async function DashboardRootLayout({
+// The proxy (proxy.ts) already enforces authentication for every route under
+// /employee, /cre, /hr, and /admin before this layout is ever reached.
+// Repeating a getUser() call here adds an unnecessary outbound network round-
+// trip on every dashboard render — removed intentionally.
+export default function DashboardRootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
-
   return <>{children}</>;
 }

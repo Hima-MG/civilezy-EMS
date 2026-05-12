@@ -28,19 +28,30 @@ const stageColor: Record<string, "default" | "secondary" | "outline" | "destruct
 
 export default async function CREDashboard() {
   const supabase = await createClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  console.log("[cre] getUser →", user?.id ?? "null");
+
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .single();
 
-  const userProfile = profile as UserProfile | null;
-  const role = (userProfile?.role ?? "cre") as Role;
+  console.log("[cre] profile →", JSON.stringify(profile), "error:", profileError?.code);
+
+  if (!profile) {
+    console.log("[cre] no profile found for user:", user.id, "— redirecting to login");
+    redirect("/login");
+  }
+
+  const userProfile = profile as UserProfile;
+  const role = userProfile.role as Role;
 
   return (
     <DashboardLayout
@@ -89,10 +100,7 @@ export default async function CREDashboard() {
             <CardContent>
               <div className="space-y-0">
                 {recentLeads.map((lead, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between py-3 border-b last:border-0"
-                  >
+                  <div key={i} className="flex items-center justify-between py-3 border-b last:border-0">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{lead.name}</p>
                       <p className="text-xs text-muted-foreground truncate">{lead.project}</p>

@@ -12,19 +12,30 @@ export const metadata: Metadata = { title: "HR & Finance Dashboard" };
 
 export default async function HRDashboard() {
   const supabase = await createClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  console.log("[hr] getUser →", user?.id ?? "null");
+
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .single();
 
-  const userProfile = profile as UserProfile | null;
-  const role = (userProfile?.role ?? "hr_finance") as Role;
+  console.log("[hr] profile →", JSON.stringify(profile), "error:", profileError?.code);
+
+  if (!profile) {
+    console.log("[hr] no profile found for user:", user.id, "— redirecting to login");
+    redirect("/login");
+  }
+
+  const userProfile = profile as UserProfile;
+  const role = userProfile.role as Role;
 
   return (
     <DashboardLayout

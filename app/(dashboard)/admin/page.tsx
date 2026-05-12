@@ -13,29 +13,39 @@ export const metadata: Metadata = { title: "Admin Dashboard" };
 
 export default async function AdminDashboard() {
   const supabase = await createClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  console.log("[admin] getUser →", user?.id ?? "null");
+
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .single();
 
-  const userProfile = profile as UserProfile | null;
-  const role = (userProfile?.role ?? "admin") as Role;
+  console.log("[admin] profile →", JSON.stringify(profile), "error:", profileError?.code);
+
+  if (!profile) {
+    console.log("[admin] no profile found for user:", user.id, "— redirecting to login");
+    redirect("/login");
+  }
+
+  const userProfile = profile as UserProfile;
+  const role = userProfile.role as Role;
 
   return (
     <DashboardLayout
       profile={userProfile}
       role={role}
       title="Admin Dashboard"
-      description="Organization-wide overview"
+      description="Organisation-wide overview"
     >
       <div className="space-y-6">
-        {/* Top stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             title="Total Employees"
@@ -68,7 +78,6 @@ export default async function AdminDashboard() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Recent Users */}
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle className="text-base">Recent System Activity</CardTitle>
@@ -88,12 +97,8 @@ export default async function AdminDashboard() {
                       <p className="text-xs text-muted-foreground truncate">{item.action}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <Badge variant="outline" className="text-xs capitalize">
-                        {item.role}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground w-12 text-right">
-                        {item.time}
-                      </span>
+                      <Badge variant="outline" className="text-xs capitalize">{item.role}</Badge>
+                      <span className="text-xs text-muted-foreground w-12 text-right">{item.time}</span>
                     </div>
                   </div>
                 ))}
@@ -101,7 +106,6 @@ export default async function AdminDashboard() {
             </CardContent>
           </Card>
 
-          {/* Quick Stats */}
           <div className="space-y-4">
             <Card>
               <CardHeader className="pb-2">
@@ -121,10 +125,7 @@ export default async function AdminDashboard() {
                         <span className="text-muted-foreground">{r.count}</span>
                       </div>
                       <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${r.color}`}
-                          style={{ width: `${r.pct}%` }}
-                        />
+                        <div className={`h-full rounded-full ${r.color}`} style={{ width: `${r.pct}%` }} />
                       </div>
                     </div>
                   ))}
@@ -148,20 +149,8 @@ export default async function AdminDashboard() {
                     <div key={i} className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">{s.service}</span>
                       <div className="flex items-center gap-1.5">
-                        <div
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            s.status === "Operational"
-                              ? "bg-emerald-500"
-                              : "bg-yellow-500"
-                          }`}
-                        />
-                        <span
-                          className={`text-xs font-medium ${
-                            s.status === "Operational"
-                              ? "text-emerald-600 dark:text-emerald-400"
-                              : "text-yellow-600 dark:text-yellow-400"
-                          }`}
-                        >
+                        <div className={`w-1.5 h-1.5 rounded-full ${s.status === "Operational" ? "bg-emerald-500" : "bg-yellow-500"}`} />
+                        <span className={`text-xs font-medium ${s.status === "Operational" ? "text-emerald-600 dark:text-emerald-400" : "text-yellow-600 dark:text-yellow-400"}`}>
                           {s.status}
                         </span>
                       </div>

@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { NAV_CONFIG } from "@/lib/nav-config";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { logoutAction } from "@/actions/auth";
 import { getInitials, getRoleLabel } from "@/lib/utils";
@@ -96,7 +96,6 @@ export function Sidebar({ profile, role }: SidebarProps) {
         <Separator />
         <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
           <Avatar className="w-8 h-8 shrink-0">
-            <AvatarImage src={profile?.avatar_url ?? undefined} />
             <AvatarFallback className="text-xs">
               {getInitials(profile?.full_name ?? profile?.email ?? "U")}
             </AvatarFallback>
