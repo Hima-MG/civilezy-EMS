@@ -1,12 +1,20 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Users, UserCheck, DollarSign, TrendingUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { StatCard } from "@/components/dashboard/stat-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import type { UserProfile, Role } from "@/types";
+import { HrTabs } from "@/components/hr/hr-tabs";
+import type {
+  UserProfile,
+  Role,
+  AttendanceRecord,
+  LeaveRequest,
+  SalaryRecord,
+  AttendanceWithProfile,
+  LeaveWithProfile,
+  SalaryWithProfile,
+  HrAnalytics,
+  MonthlyPayrollPoint,
+} from "@/types";
 
 export const metadata: Metadata = { title: "HR & Finance Dashboard" };
 
@@ -17,25 +25,131 @@ export default async function HRDashboard() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  console.log("[hr] getUser →", user?.id ?? "null");
-
   if (!user) redirect("/login");
 
-  const { data: profile, error: profileError } = await supabase
+  // Fetch current user's profile + role check
+  const { data: profile } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .single();
 
-  console.log("[hr] profile →", JSON.stringify(profile), "error:", profileError?.code);
-
-  if (!profile) {
-    console.log("[hr] no profile found for user:", user.id, "— redirecting to login");
-    redirect("/login");
-  }
+  if (!profile) redirect("/login");
 
   const userProfile = profile as UserProfile;
   const role = userProfile.role as Role;
+
+  // Only hr_finance and admin may access this page
+  if (role !== "hr_finance" && role !== "admin") {
+    redirect("/employee");
+  }
+
+  // ── Parallel data fetching ─────────────────────────────────
+  const currentMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+  const today = new Date().toISOString().slice(0, 10);       // "YYYY-MM-DD"
+
+  // Attendance window: first day of 5 months ago → covers 6 rolling months.
+  // This gives the salary form enough data to auto-fill present_days for any
+  // month in that window, and lets HR browse/filter older records.
+  const sixMonthsAgoStart = (() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 5);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+  })();
+
+  const [profilesResult, attendanceResult, leavesResult, salaryResult] =
+    await Promise.all([
+      // All employee profiles (fixed HR RLS policy via get_my_role())
+      supabase
+        .from("profiles")
+        .select("*")
+        .eq("is_active", true)
+        .order("full_name", { ascending: true }),
+
+      // Attendance for last 6 months (was: current month only)
+      supabase
+        .from("attendance")
+        .select("*")
+        .gte("attendance_date", sixMonthsAgoStart)
+        .order("attendance_date", { ascending: false }),
+
+      // All leave requests
+      supabase
+        .from("leave_requests")
+        .select("*")
+        .order("created_at", { ascending: false }),
+
+      // All salary records
+      supabase
+        .from("salary_records")
+        .select("*")
+        .order("month", { ascending: false }),
+    ]);
+
+  const allProfiles = (profilesResult.data ?? []) as UserProfile[];
+  const rawAttendance = (attendanceResult.data ?? []) as AttendanceRecord[];
+  const rawLeaves = (leavesResult.data ?? []) as LeaveRequest[];
+  const rawSalary = (salaryResult.data ?? []) as SalaryRecord[];
+
+  // Employee-only profiles for dropdowns (exclude admin / hr from lists)
+  const employeeProfiles = allProfiles.filter(
+    (p) => p.role === "employee" || p.role === "cre"
+  );
+
+  // ── Build name lookup map ──────────────────────────────────
+  const profileMap = new Map(allProfiles.map((p) => [p.id, p]));
+
+  const attendance: AttendanceWithProfile[] = rawAttendance.map((a) => ({
+    ...a,
+    full_name: profileMap.get(a.user_id)?.full_name ?? "",
+    email: profileMap.get(a.user_id)?.email ?? "",
+  }));
+
+  const leaves: LeaveWithProfile[] = rawLeaves.map((l) => ({
+    ...l,
+    full_name: profileMap.get(l.user_id)?.full_name ?? "",
+    email: profileMap.get(l.user_id)?.email ?? "",
+  }));
+
+  const salaryRecords: SalaryWithProfile[] = rawSalary.map((s) => ({
+    ...s,
+    full_name: profileMap.get(s.user_id)?.full_name ?? "",
+    email: profileMap.get(s.user_id)?.email ?? "",
+  }));
+
+  // ── Analytics ──────────────────────────────────────────────
+  const totalEmployees = employeeProfiles.length;
+  const pendingLeaves = rawLeaves.filter((l) => l.status === "pending").length;
+  const presentToday = rawAttendance.filter(
+    (a) => a.attendance_date === today && a.status === "present"
+  ).length;
+  const monthlyPayroll = rawSalary
+    .filter((s) => s.month === currentMonth)
+    .reduce((sum, s) => sum + s.final_salary, 0);
+
+  const analytics: HrAnalytics = {
+    totalEmployees,
+    pendingLeaves,
+    presentToday,
+    monthlyPayroll,
+  };
+
+  // ── Monthly payroll chart data (last 6 months) ─────────────
+  const now = new Date();
+  const monthlyPayrollData: MonthlyPayrollPoint[] = Array.from(
+    { length: 6 },
+    (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleString("en-IN", { month: "short", year: "2-digit" });
+      return {
+        month: label,
+        total: rawSalary
+          .filter((s) => s.month === key)
+          .reduce((sum, s) => sum + s.final_salary, 0),
+      };
+    }
+  );
 
   return (
     <DashboardLayout
@@ -44,96 +158,14 @@ export default async function HRDashboard() {
       title="HR & Finance"
       description="Human Resources and Financial Overview"
     >
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            title="Total Employees"
-            value="84"
-            description="4 new this month"
-            icon={Users}
-            trend={{ value: 5, label: "vs last month" }}
-          />
-          <StatCard
-            title="Present Today"
-            value="71"
-            description="84.5% attendance"
-            icon={UserCheck}
-            trend={{ value: -2, label: "vs yesterday" }}
-          />
-          <StatCard
-            title="Monthly Payroll"
-            value="₹38.2L"
-            description="May 2026"
-            icon={DollarSign}
-            trend={{ value: 3.1, label: "vs last month" }}
-          />
-          <StatCard
-            title="Open Positions"
-            value="7"
-            description="3 in final round"
-            icon={TrendingUp}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Pending Leave Requests</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-0">
-                {[
-                  { name: "Arun Patel", type: "Sick Leave", days: 2, from: "May 13" },
-                  { name: "Deepa Nair", type: "Casual Leave", days: 1, from: "May 15" },
-                  { name: "Kiran Raj", type: "Earned Leave", days: 5, from: "May 20" },
-                  { name: "Meera Das", type: "Maternity Leave", days: 90, from: "Jun 1" },
-                ].map((req, i) => (
-                  <div key={i} className="flex items-center justify-between py-3 border-b last:border-0">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{req.name}</p>
-                      <p className="text-xs text-muted-foreground">{req.type} · From {req.from}</p>
-                    </div>
-                    <div className="flex items-center gap-2 ml-4 shrink-0">
-                      <span className="text-xs text-muted-foreground">{req.days}d</span>
-                      <Badge variant="outline" className="text-xs">Pending</Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Department Headcount</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[
-                  { dept: "Engineering", count: 28, pct: 33 },
-                  { dept: "Sales & CRE", count: 22, pct: 26 },
-                  { dept: "Operations", count: 18, pct: 21 },
-                  { dept: "HR & Finance", count: 10, pct: 12 },
-                  { dept: "Management", count: 6, pct: 8 },
-                ].map((row, i) => (
-                  <div key={i} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium">{row.dept}</span>
-                      <span className="text-muted-foreground">{row.count} employees</span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-primary"
-                        style={{ width: `${row.pct}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <HrTabs
+        profiles={employeeProfiles}
+        attendance={attendance}
+        leaves={leaves}
+        salaryRecords={salaryRecords}
+        analytics={analytics}
+        monthlyPayrollData={monthlyPayrollData}
+      />
     </DashboardLayout>
   );
 }

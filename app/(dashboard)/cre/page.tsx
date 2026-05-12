@@ -1,30 +1,29 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Users, Target, TrendingUp, Building2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { StatCard } from "@/components/dashboard/stat-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import type { UserProfile, Role } from "@/types";
+import { CreTabs } from "@/components/cre/cre-tabs";
+import type { UserProfile, Role, Lead, LeadNote, LeadStatus } from "@/types";
 
 export const metadata: Metadata = { title: "CRE Dashboard" };
 
-const recentLeads = [
-  { name: "Rajesh Kumar", project: "Skyline Residency", stage: "Site Visit", value: "₹85L" },
-  { name: "Priya Mehta", project: "Green Villas", stage: "Negotiation", value: "₹1.2Cr" },
-  { name: "Suresh Iyer", project: "Metro Heights", stage: "New Lead", value: "₹60L" },
-  { name: "Anita Sharma", project: "Skyline Residency", stage: "Closed", value: "₹95L" },
-  { name: "Vikram Singh", project: "Green Villas", stage: "Follow-up", value: "₹72L" },
-];
-
-const stageColor: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
-  "New Lead": "secondary",
-  "Site Visit": "outline",
-  "Negotiation": "default",
-  "Closed": "default",
-  "Follow-up": "secondary",
+const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
+  new: "New",
+  contacted: "Contacted",
+  interested: "Interested",
+  follow_up: "Follow-up",
+  converted: "Converted",
+  lost: "Lost",
 };
+
+const ALL_STATUSES: LeadStatus[] = [
+  "new",
+  "contacted",
+  "interested",
+  "follow_up",
+  "converted",
+  "lost",
+];
 
 export default async function CREDashboard() {
   const supabase = await createClient();
@@ -33,25 +32,69 @@ export default async function CREDashboard() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  console.log("[cre] getUser →", user?.id ?? "null");
-
   if (!user) redirect("/login");
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
+  const [profileResult, leadsResult] = await Promise.all([
+    supabase.from("profiles").select("*").eq("id", user.id).single(),
+    supabase
+      .from("leads")
+      .select("*")
+      .or(`created_by.eq.${user.id},assigned_to.eq.${user.id}`)
+      .order("created_at", { ascending: false }),
+  ]);
 
-  console.log("[cre] profile →", JSON.stringify(profile), "error:", profileError?.code);
+  if (!profileResult.data) redirect("/login");
 
-  if (!profile) {
-    console.log("[cre] no profile found for user:", user.id, "— redirecting to login");
-    redirect("/login");
+  const userProfile = profileResult.data as UserProfile;
+  const role = userProfile.role as Role;
+
+  if (role !== "cre" && role !== "admin") redirect("/employee");
+  const leads = (leadsResult.data ?? []) as Lead[];
+  const leadIds = leads.map((l) => l.id);
+
+  // Fetch all notes for the current user's leads in one query
+  const notesResult =
+    leadIds.length > 0
+      ? await supabase
+          .from("lead_notes")
+          .select("*")
+          .in("lead_id", leadIds)
+          .order("created_at", { ascending: false })
+      : { data: [] };
+
+  const allNotes = (notesResult.data ?? []) as LeadNote[];
+
+  // Build notesMap: Record<lead_id, LeadNote[]>
+  const notesMap: Record<string, LeadNote[]> = {};
+  for (const note of allNotes) {
+    if (!notesMap[note.lead_id]) notesMap[note.lead_id] = [];
+    notesMap[note.lead_id].push(note);
   }
 
-  const userProfile = profile as UserProfile;
-  const role = userProfile.role as Role;
+  // ── Analytics calculations ─────────────────────────────────
+  const totalLeads = leads.length;
+  const convertedLeads = leads.filter((l) => l.status === "converted").length;
+  const pendingFollowups = leads.filter((l) => l.status === "follow_up").length;
+  const conversionRate =
+    totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0;
+
+  // ── Status distribution for chart ─────────────────────────
+  const statusData = ALL_STATUSES.map((status) => ({
+    status: LEAD_STATUS_LABELS[status],
+    count: leads.filter((l) => l.status === status).length,
+  }));
+
+  // ── Monthly lead creation (last 6 months) ─────────────────
+  const now = new Date();
+  const monthlyData = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+    const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleString("en-IN", { month: "short", year: "2-digit" });
+    return {
+      month: label,
+      count: leads.filter((l) => l.created_at.startsWith(yearMonth)).length,
+    };
+  });
 
   return (
     <DashboardLayout
@@ -60,93 +103,13 @@ export default async function CREDashboard() {
       title="CRE Dashboard"
       description="Customer Relationship & Sales Overview"
     >
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            title="Active Leads"
-            value="47"
-            description="Across all projects"
-            icon={Users}
-            trend={{ value: 12, label: "vs last month" }}
-          />
-          <StatCard
-            title="Site Visits"
-            value="18"
-            description="This month"
-            icon={Building2}
-            trend={{ value: 5, label: "vs last month" }}
-          />
-          <StatCard
-            title="Conversions"
-            value="6"
-            description="This month"
-            icon={Target}
-            trend={{ value: 20, label: "vs last month" }}
-          />
-          <StatCard
-            title="Revenue Target"
-            value="68%"
-            description="₹4.1Cr of ₹6Cr"
-            icon={TrendingUp}
-            trend={{ value: 3, label: "vs last month" }}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Recent Leads</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-0">
-                {recentLeads.map((lead, i) => (
-                  <div key={i} className="flex items-center justify-between py-3 border-b last:border-0">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{lead.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{lead.project}</p>
-                    </div>
-                    <div className="flex items-center gap-2 ml-4 shrink-0">
-                      <span className="text-sm font-semibold">{lead.value}</span>
-                      <Badge variant={stageColor[lead.stage] ?? "secondary"} className="text-xs">
-                        {lead.stage}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Pipeline Summary</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[
-                  { stage: "New Leads", count: 14, value: "₹8.4Cr", pct: 30 },
-                  { stage: "Site Visits", count: 18, value: "₹10.8Cr", pct: 38 },
-                  { stage: "Negotiation", count: 9, value: "₹5.4Cr", pct: 19 },
-                  { stage: "Closed Won", count: 6, value: "₹3.6Cr", pct: 13 },
-                ].map((row, i) => (
-                  <div key={i} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium">{row.stage}</span>
-                      <span className="text-muted-foreground">{row.count} leads · {row.value}</span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-primary transition-all"
-                        style={{ width: `${row.pct}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <CreTabs
+        leads={leads}
+        notesMap={notesMap}
+        analytics={{ totalLeads, convertedLeads, pendingFollowups, conversionRate }}
+        statusData={statusData}
+        monthlyData={monthlyData}
+      />
     </DashboardLayout>
   );
 }

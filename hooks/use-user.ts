@@ -21,14 +21,15 @@ export function useUser(): UseUserReturn {
     let cancelled = false;
 
     async function fetchProfile() {
-      // getSession() is local — no network round-trip.
+      // getUser() validates the JWT with the Supabase server — more secure
+      // than getSession() which only reads from local storage.
       const {
-        data: { session },
-      } = await supabase.auth.getSession();
+        data: { user },
+      } = await supabase.auth.getUser();
 
       if (cancelled) return;
 
-      if (!session) {
+      if (!user) {
         setProfile(null);
         setLoading(false);
         return;
@@ -37,7 +38,7 @@ export function useUser(): UseUserReturn {
       const { data } = await supabase
         .from("profiles")
         .select("*")
-        .eq("id", session.user.id)
+        .eq("id", user.id)
         .single();
 
       if (!cancelled) {

@@ -50,31 +50,22 @@ export async function loginAction(
 
   const supabase = await createClient();
 
-  console.log("[auth] sign-in attempt:", parsed.data.email);
-
   const { error: signInError } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
     password: parsed.data.password,
   });
 
   if (signInError) {
-    console.log("[auth] sign-in error:", signInError.message);
     return { success: false, error: signInError.message };
   }
 
-  console.log("[auth] sign-in ok — fetching user");
-
   const {
     data: { user },
-    error: userError,
   } = await supabase.auth.getUser();
 
   if (!user) {
-    console.log("[auth] getUser returned null:", userError?.message);
     return { success: false, error: "Authentication failed. Please try again." };
   }
-
-  console.log("[auth] user.id:", user.id, "email:", user.email);
 
   // Use service-role client so the profile lookup bypasses RLS.
   // The user identity has already been verified above by getUser().
@@ -86,18 +77,7 @@ export async function loginAction(
     .eq("id", user.id)
     .single();
 
-  console.log("[auth] profile query → data:", JSON.stringify(profile), "error:", profileError?.code, profileError?.message);
-
   if (profileError || !profile) {
-    // Leave the session intact — signing out here would force the user to
-    // re-enter credentials just to see the same error. Log out explicitly
-    // only if the profile is missing so the user can try a different account.
-    if (profileError?.code === "PGRST116") {
-      console.log("[auth] no profile row found for user.id:", user.id);
-      console.log("[auth] hint: INSERT INTO profiles (id, email, full_name, role) VALUES ('%s', '%s', '...', 'employee');", user.id, user.email);
-    } else {
-      console.log("[auth] unexpected profile error:", profileError);
-    }
     await supabase.auth.signOut();
     return {
       success: false,
@@ -106,7 +86,6 @@ export async function loginAction(
   }
 
   const role = profile.role as Role;
-  console.log("[auth] role:", role, "→ redirecting to", getRoleDashboardPath(role));
 
   revalidatePath("/", "layout");
   redirect(getRoleDashboardPath(role));
