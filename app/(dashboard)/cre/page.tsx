@@ -25,7 +25,12 @@ const ALL_STATUSES: LeadStatus[] = [
   "lost",
 ];
 
-export default async function CREDashboard() {
+export default async function CREDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -96,6 +101,10 @@ export default async function CREDashboard() {
     };
   });
 
+  const VALID_TABS = ["overview", "leads", "followups", "notes", "analytics", "profile"] as const;
+  type ValidTab = typeof VALID_TABS[number];
+  const defaultTab: ValidTab = VALID_TABS.includes(tab as ValidTab) ? (tab as ValidTab) : "overview";
+
   return (
     <DashboardLayout
       profile={userProfile}
@@ -106,9 +115,12 @@ export default async function CREDashboard() {
       <CreTabs
         leads={leads}
         notesMap={notesMap}
+        allNotes={allNotes}
         analytics={{ totalLeads, convertedLeads, pendingFollowups, conversionRate }}
         statusData={statusData}
         monthlyData={monthlyData}
+        defaultTab={defaultTab}
+        profile={userProfile}
       />
     </DashboardLayout>
   );

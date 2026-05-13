@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Search, Moon, Sun, Monitor } from "lucide-react";
+import { Bell, Search, Moon, Sun, Monitor, Menu } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,65 +10,87 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { useSidebar } from "./sidebar-context";
 
-interface HeaderProps {
-  title: string;
-  description?: string;
-}
+// ── Theme toggle ──────────────────────────────────────────────
 
 function ThemeToggle() {
   const { setTheme } = useTheme();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
-          <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+        <Button variant="ghost" size="icon" className="relative h-8 w-8">
+          <Sun className="h-3.5 w-3.5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-3.5 w-3.5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
           <span className="sr-only">Toggle theme</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className="text-sm">
         <DropdownMenuItem onClick={() => setTheme("light")}>
-          <Sun className="mr-2 h-4 w-4" /> Light
+          <Sun className="mr-2 h-3.5 w-3.5" /> Light
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setTheme("dark")}>
-          <Moon className="mr-2 h-4 w-4" /> Dark
+          <Moon className="mr-2 h-3.5 w-3.5" /> Dark
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setTheme("system")}>
-          <Monitor className="mr-2 h-4 w-4" /> System
+          <Monitor className="mr-2 h-3.5 w-3.5" /> System
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
+// ── Header ────────────────────────────────────────────────────
+
+interface HeaderProps {
+  title: string;
+  description?: string;
+}
+
 export function Header({ title, description }: HeaderProps) {
+  const { setMobileOpen } = useSidebar();
+
   return (
-    <header className="flex items-center justify-between h-16 px-6 border-b bg-background/95 backdrop-blur-sm sticky top-0 z-10 shrink-0">
-      <div className="flex flex-col">
-        <h1 className="font-semibold text-base leading-tight">{title}</h1>
-        {description && (
-          <p className="text-xs text-muted-foreground">{description}</p>
-        )}
+    <header className="flex items-center justify-between h-12 px-4 border-b border-border/60 bg-background/80 backdrop-blur-sm sticky top-0 z-10 shrink-0 gap-3">
+      <div className="flex items-center gap-3 min-w-0">
+        {/* Mobile hamburger */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="lg:hidden h-7 w-7 shrink-0"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open navigation"
+        >
+          <Menu className="h-4 w-4" />
+        </Button>
+
+        {/* Title */}
+        <div className="flex flex-col min-w-0">
+          <h1 className="font-semibold text-sm leading-tight tracking-tight truncate">
+            {title}
+          </h1>
+          {description && (
+            <p className="text-[11px] text-muted-foreground truncate leading-tight">
+              {description}
+            </p>
+          )}
+        </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        {/* Search */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        {/* Search — desktop only */}
         <div className="relative hidden md:flex items-center">
-          <Search className="absolute left-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          <Search className="absolute left-2.5 h-3 w-3 text-muted-foreground" />
           <Input
-            placeholder="Search..."
-            className="pl-8 h-8 w-56 text-sm bg-muted/40 border-0 focus-visible:ring-1"
+            placeholder="Search…"
+            className="pl-7 h-7 w-48 text-xs bg-muted/50 border-transparent focus-visible:border-border focus-visible:ring-0 rounded-lg placeholder:text-muted-foreground/70"
           />
         </div>
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-4 w-4" />
-          <Badge className="absolute -top-0.5 -right-0.5 h-4 w-4 p-0 text-[10px] flex items-center justify-center rounded-full">
-            3
-          </Badge>
+        <Button variant="ghost" size="icon" className="relative h-7 w-7">
+          <Bell className="h-3.5 w-3.5" />
+          <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full" />
         </Button>
 
         <ThemeToggle />

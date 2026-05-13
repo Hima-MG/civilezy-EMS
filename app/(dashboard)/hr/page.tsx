@@ -18,7 +18,12 @@ import type {
 
 export const metadata: Metadata = { title: "HR & Finance Dashboard" };
 
-export default async function HRDashboard() {
+export default async function HRDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -148,6 +153,10 @@ export default async function HRDashboard() {
     }
   );
 
+  const VALID_TABS = ["overview", "attendance", "leaves", "payroll", "employees", "payments"] as const;
+  type ValidTab = typeof VALID_TABS[number];
+  const defaultTab: ValidTab = VALID_TABS.includes(tab as ValidTab) ? (tab as ValidTab) : "overview";
+
   return (
     <DashboardLayout
       profile={userProfile}
@@ -162,6 +171,7 @@ export default async function HRDashboard() {
         salaryRecords={salaryRecords}
         analytics={analytics}
         monthlyPayrollData={monthlyPayrollData}
+        defaultTab={defaultTab}
       />
     </DashboardLayout>
   );

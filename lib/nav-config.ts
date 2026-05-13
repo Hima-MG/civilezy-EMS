@@ -1,45 +1,45 @@
 import type { NavItem, Role } from "@/types";
 
 const employeeNav: NavItem[] = [
-  { title: "Overview", href: "/employee", icon: "LayoutDashboard" },
-  { title: "My Profile", href: "/employee/profile", icon: "User" },
-  { title: "Attendance", href: "/employee/attendance", icon: "Clock" },
-  { title: "Leave Requests", href: "/employee/leaves", icon: "CalendarOff" },
-  { title: "Payslips", href: "/employee/payslips", icon: "FileText" },
-  { title: "Tasks", href: "/employee/tasks", icon: "CheckSquare" },
+  { title: "Dashboard",     href: "/employee",                   icon: "LayoutDashboard" },
+  { title: "Attendance",    href: "/employee?tab=attendance",    icon: "Clock" },
+  { title: "Tasks",         href: "/employee?tab=tasks",         icon: "CheckSquare" },
+  { title: "Leave",         href: "/employee?tab=leaves",        icon: "CalendarOff" },
+  { title: "Work Reports",  href: "/employee/work-reports",      icon: "ClipboardList" },
+  { title: "Meetings",      href: "/employee?tab=meetings",      icon: "Calendar" },
+  { title: "Profile",       href: "/employee?tab=profile",       icon: "User" },
 ];
 
 const creNav: NavItem[] = [
-  { title: "Overview", href: "/cre", icon: "LayoutDashboard" },
-  { title: "Leads", href: "/cre/leads", icon: "Users" },
-  { title: "Projects", href: "/cre/projects", icon: "Building2" },
-  { title: "Site Visits", href: "/cre/site-visits", icon: "MapPin" },
-  { title: "Quotations", href: "/cre/quotations", icon: "FileText" },
-  { title: "Follow-ups", href: "/cre/follow-ups", icon: "Phone" },
-  { title: "Reports", href: "/cre/reports", icon: "BarChart2" },
+  { title: "Dashboard",   href: "/cre",                  icon: "LayoutDashboard" },
+  { title: "Leads",       href: "/cre?tab=leads",        icon: "Users" },
+  { title: "Follow-ups",  href: "/cre?tab=followups",    icon: "Phone" },
+  { title: "Notes",       href: "/cre?tab=notes",        icon: "FileText" },
+  { title: "Analytics",   href: "/cre?tab=analytics",    icon: "BarChart2" },
+  { title: "Profile",     href: "/cre?tab=profile",      icon: "User" },
 ];
 
 const hrNav: NavItem[] = [
-  { title: "Overview", href: "/hr", icon: "LayoutDashboard" },
-  { title: "Employees", href: "/hr/employees", icon: "Users" },
-  { title: "Attendance", href: "/hr/attendance", icon: "Clock" },
-  { title: "Leave Management", href: "/hr/leaves", icon: "CalendarOff" },
-  { title: "Payroll", href: "/hr/payroll", icon: "DollarSign" },
-  { title: "Recruitment", href: "/hr/recruitment", icon: "UserPlus" },
-  { title: "Finance", href: "/hr/finance", icon: "TrendingUp" },
-  { title: "Reports", href: "/hr/reports", icon: "BarChart2" },
+  { title: "Dashboard",    href: "/hr",                  icon: "LayoutDashboard" },
+  { title: "Attendance",   href: "/hr?tab=attendance",   icon: "Clock" },
+  { title: "Leaves",       href: "/hr?tab=leaves",       icon: "CalendarOff" },
+  { title: "Payroll",      href: "/hr?tab=payroll",      icon: "DollarSign" },
+  { title: "Employees",    href: "/hr?tab=employees",    icon: "Users" },
+  { title: "Payments",     href: "/hr?tab=payments",     icon: "CreditCard" },
+  { title: "Work Reports", href: "/hr/work-reports",     icon: "ClipboardList" },
 ];
 
 const adminNav: NavItem[] = [
-  { title: "Overview", href: "/admin", icon: "LayoutDashboard" },
-  { title: "Users", href: "/admin/users", icon: "Users" },
-  { title: "Employees", href: "/admin/employees", icon: "UserCheck" },
-  { title: "Projects", href: "/admin/projects", icon: "Building2" },
-  { title: "CRM", href: "/admin/crm", icon: "Target" },
-  { title: "HR & Finance", href: "/admin/hr", icon: "Briefcase" },
-  { title: "Analytics", href: "/admin/analytics", icon: "LineChart" },
-  { title: "Settings", href: "/admin/settings", icon: "Settings" },
-  { title: "Audit Logs", href: "/admin/audit", icon: "Shield" },
+  { title: "Overview",   href: "/admin",                  icon: "LayoutDashboard" },
+  { title: "Employees",  href: "/admin?tab=employees",    icon: "UserCheck" },
+  { title: "Work Audit", href: "/admin/work-reports",     icon: "ClipboardList" },
+  { title: "Students",   href: "/admin?tab=students",     icon: "GraduationCap" },
+  { title: "Renewals",   href: "/admin?tab=renewals",     icon: "RefreshCw" },
+  { title: "Finance",    href: "/admin?tab=finance",      icon: "DollarSign" },
+  { title: "CRM",        href: "/admin?tab=crm",          icon: "Target" },
+  { title: "HR",         href: "/admin?tab=hr",           icon: "Briefcase" },
+  { title: "Analytics",  href: "/admin?tab=analytics",    icon: "LineChart" },
+  { title: "Settings",   href: "/admin?tab=settings",     icon: "Settings" },
 ];
 
 export const NAV_CONFIG: Record<Role, NavItem[]> = {

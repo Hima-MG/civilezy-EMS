@@ -1,4 +1,5 @@
 export type Role = "employee" | "cre" | "hr_finance" | "admin";
+export type EmployeeCategory = "content_creator" | "tech_lead" | "digital_marketer";
 
 // ── Employee Module ──────────────────────────────────────────
 
@@ -45,6 +46,7 @@ export interface UserProfile {
   email: string;
   full_name: string;
   role: Role;
+  employee_category: EmployeeCategory | null;
   avatar_url: string | null;
   department: string | null;
   phone: string | null;
@@ -187,4 +189,27 @@ export interface AdminActivityItem {
   detail: string;
   status: string;
   time: string;
+}
+
+// ── Work Reports Module ──────────────────────────────────────
+
+export type WorkReportStatus = "pending" | "in_progress" | "completed";
+
+export interface WorkReport {
+  id: string;
+  user_id: string;
+  category: EmployeeCategory;
+  sub_category: string;
+  title: string;
+  description: string | null;
+  hours_spent: number;
+  status: WorkReportStatus;
+  report_date: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkReportWithProfile extends WorkReport {
+  full_name: string;
+  email: string;
 }

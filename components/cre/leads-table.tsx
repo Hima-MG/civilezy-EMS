@@ -1,49 +1,41 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Search, SlidersHorizontal, MessageSquare } from "lucide-react";
+import { Search, Plus, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { LeadStatusBadge } from "./lead-status-badge";
+import { LeadStatusBadge, LEAD_STATUS_CONFIG } from "./lead-status-badge";
 import { LeadNotesDialog } from "./lead-notes-dialog";
 import { LeadForm } from "./lead-form";
+import { EmptyState } from "@/components/ds";
+import { cn } from "@/lib/utils";
 import type { Lead, LeadNote, LeadStatus } from "@/types";
 
 const PAGE_SIZE = 20;
 
 const SOURCE_LABELS: Record<string, string> = {
-  website: "Website",
-  referral: "Referral",
-  walk_in: "Walk-in",
-  phone: "Phone Call",
-  social_media: "Social Media",
-  advertisement: "Advertisement",
-  other: "Other",
+  website:       "Website",
+  referral:      "Referral",
+  walk_in:       "Walk-in",
+  phone:         "Phone",
+  social_media:  "Social",
+  advertisement: "Ad",
+  other:         "Other",
 };
 
+const STAGE_FILTERS: { value: LeadStatus | "all"; label: string }[] = [
+  { value: "all",        label: "All" },
+  { value: "new",        label: "New" },
+  { value: "contacted",  label: "Contacted" },
+  { value: "interested", label: "Interested" },
+  { value: "follow_up",  label: "Follow-up" },
+  { value: "converted",  label: "Converted" },
+  { value: "lost",       label: "Lost" },
+];
+
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
 interface LeadsTableProps {
@@ -52,9 +44,9 @@ interface LeadsTableProps {
 }
 
 export function LeadsTable({ leads, notesMap }: LeadsTableProps) {
-  const [search, setSearch] = useState("");
+  const [search,       setSearch]       = useState("");
   const [statusFilter, setStatusFilter] = useState<LeadStatus | "all">("all");
-  const [page, setPage] = useState(1);
+  const [page,         setPage]         = useState(1);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -65,205 +57,189 @@ export function LeadsTable({ leads, notesMap }: LeadsTableProps) {
         l.phone.includes(q) ||
         (l.email?.toLowerCase() ?? "").includes(q) ||
         (l.course_interest?.toLowerCase() ?? "").includes(q);
-
-      const matchStatus =
-        statusFilter === "all" || l.status === statusFilter;
-
+      const matchStatus = statusFilter === "all" || l.status === statusFilter;
       return matchSearch && matchStatus;
     });
   }, [leads, search, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  function handleSearchChange(value: string) {
-    setSearch(value);
-    setPage(1);
-  }
+  function onSearch(v: string) { setSearch(v);       setPage(1); }
+  function onStage (v: LeadStatus | "all") { setStatusFilter(v); setPage(1); }
 
-  function handleStatusChange(value: string) {
-    setStatusFilter(value as LeadStatus | "all");
-    setPage(1);
-  }
+  const stageCounts = useMemo(
+    () => Object.fromEntries(
+      (["new","contacted","interested","follow_up","converted","lost"] as LeadStatus[])
+        .map((s) => [s, leads.filter((l) => l.status === s).length])
+    ),
+    [leads]
+  );
 
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex flex-1 items-center gap-2 w-full sm:max-w-sm">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by name, phone, email…"
-              className="pl-8 h-9"
-              value={search}
-              onChange={(e) => handleSearchChange(e.target.value)}
-            />
-          </div>
-          <Select value={statusFilter} onValueChange={handleStatusChange}>
-            <SelectTrigger className="w-36 h-9 shrink-0">
-              <SlidersHorizontal className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="new">New</SelectItem>
-              <SelectItem value="contacted">Contacted</SelectItem>
-              <SelectItem value="interested">Interested</SelectItem>
-              <SelectItem value="follow_up">Follow-up</SelectItem>
-              <SelectItem value="converted">Converted</SelectItem>
-              <SelectItem value="lost">Lost</SelectItem>
-            </SelectContent>
-          </Select>
+
+      {/* ── Toolbar ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Search name, phone, email…"
+            className="pl-8.5 h-9 bg-muted/40 border-border/60 text-sm rounded-xl focus-visible:ring-0 focus-visible:border-border"
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
+          />
         </div>
         <LeadForm />
       </div>
 
-      {/* Count */}
-      <p className="text-xs text-muted-foreground">
-        {filtered.length} lead{filtered.length !== 1 ? "s" : ""}
-        {statusFilter !== "all" || search ? " (filtered)" : ""}
-      </p>
+      {/* ── Stage filter pills ── */}
+      <div className="flex flex-wrap gap-1.5">
+        {STAGE_FILTERS.map((f) => {
+          const isActive = statusFilter === f.value;
+          const count    = f.value === "all" ? leads.length : (stageCounts[f.value as LeadStatus] ?? 0);
+          const cfg      = f.value !== "all" ? LEAD_STATUS_CONFIG[f.value as LeadStatus] : null;
 
-      {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          {paginated.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-2 text-center px-4">
-              <Search className="w-8 h-8 text-muted-foreground/40" />
-              <p className="text-sm font-medium">No leads found</p>
-              <p className="text-xs text-muted-foreground">
-                {search || statusFilter !== "all"
-                  ? "Try adjusting your search or filter."
-                  : "Add your first lead using the button above."}
-              </p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[180px]">Name</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead className="hidden sm:table-cell">Email</TableHead>
-                  <TableHead className="hidden md:table-cell">
-                    Course / Interest
-                  </TableHead>
-                  <TableHead className="hidden lg:table-cell">Source</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="hidden md:table-cell">Added</TableHead>
-                  <TableHead className="w-[80px] text-right">Notes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginated.map((lead) => {
-                  const noteCount = (notesMap[lead.id] ?? []).length;
-                  return (
-                    <TableRow key={lead.id}>
-                      <TableCell className="font-medium text-sm">
-                        {lead.name}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {lead.phone}
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
-                        {lead.email || "—"}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell text-sm max-w-[160px] truncate text-muted-foreground">
-                        {lead.course_interest || "—"}
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
-                        {SOURCE_LABELS[lead.source ?? ""] ?? lead.source ?? "—"}
-                      </TableCell>
-                      <TableCell>
-                        <LeadStatusBadge status={lead.status} />
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                        {fmtDate(lead.created_at)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <LeadNotesDialog
-                          lead={lead}
-                          initialNotes={notesMap[lead.id] ?? []}
-                        >
-                          <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs">
-                            <MessageSquare className="w-3.5 h-3.5" />
-                            {noteCount > 0 && (
-                              <span className="font-medium">{noteCount}</span>
-                            )}
-                          </Button>
-                        </LeadNotesDialog>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <p className="text-muted-foreground">
-            Page {page} of {totalPages}
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page === 1}
-              onClick={() => setPage((p) => p - 1)}
+          return (
+            <button
+              key={f.value}
+              onClick={() => onStage(f.value)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full text-xs font-medium px-2.5 py-1",
+                "border transition-all duration-150",
+                isActive
+                  ? "border-primary/40 bg-primary/12 text-primary"
+                  : "border-border/60 bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              )}
             >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page === totalPages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function LeadsTableSkeleton() {
-  return (
-    <div className="space-y-4">
-      <div className="flex gap-2">
-        <Skeleton className="h-9 flex-1 max-w-sm" />
-        <Skeleton className="h-9 w-36" />
-        <Skeleton className="h-9 w-24 ml-auto" />
+              {cfg && <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", cfg.dot)} />}
+              {f.label}
+              <span className={cn(
+                "text-[10px] font-semibold rounded-full px-1.5 py-px",
+                isActive ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+              )}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {["Name", "Phone", "Status", "Added", "Notes"].map((h) => (
-                  <TableHead key={h}>{h}</TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 5 }).map((_, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-4 w-full" />
-                    </TableCell>
+
+      {/* ── Table ── */}
+      <div className="relative rounded-2xl border border-border/60 bg-card overflow-hidden shadow-sm">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/8 to-transparent pointer-events-none z-10" />
+
+        {paginated.length === 0 ? (
+          <EmptyState
+            icon={Search}
+            title={search || statusFilter !== "all" ? "No leads match your filter" : "No leads yet"}
+            description={search || statusFilter !== "all" ? "Try clearing the search or changing the stage filter." : "Add your first lead using the button above."}
+            variant="inline"
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/40">
+                  {["Name","Phone","Course / Interest","Source","Added","Status","Notes"].map((h) => (
+                    <th
+                      key={h}
+                      className={cn(
+                        "px-4 py-3 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground bg-muted/20 text-left",
+                        h === "Notes"  && "text-right",
+                        h === "Source" && "hidden lg:table-cell",
+                        h === "Course / Interest" && "hidden md:table-cell",
+                      )}
+                    >
+                      {h}
+                    </th>
                   ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                </tr>
+              </thead>
+              <tbody>
+                <AnimatePresence initial={false}>
+                  {paginated.map((lead, i) => {
+                    const noteCount = (notesMap[lead.id] ?? []).length;
+                    return (
+                      <motion.tr
+                        key={lead.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.12, delay: i * 0.02 }}
+                        className="border-b border-border/30 last:border-0 hover:bg-accent/20 transition-colors duration-100"
+                      >
+                        <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">
+                          {lead.name}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground font-mono text-xs tracking-wide">
+                          {lead.phone}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground hidden md:table-cell max-w-[160px]">
+                          <span className="truncate block">{lead.course_interest || "—"}</span>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell text-xs">
+                          {SOURCE_LABELS[lead.source ?? ""] ?? lead.source ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
+                          {fmtDate(lead.created_at)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <LeadStatusBadge status={lead.status} />
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <LeadNotesDialog lead={lead} initialNotes={notesMap[lead.id] ?? []}>
+                            <button className={cn(
+                              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium",
+                              "transition-colors duration-100",
+                              noteCount > 0
+                                ? "bg-primary/10 text-primary hover:bg-primary/18"
+                                : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                            )}>
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              {noteCount > 0 && <span>{noteCount}</span>}
+                            </button>
+                          </LeadNotesDialog>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
+                </AnimatePresence>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Footer / pagination */}
+        {(totalPages > 1 || filtered.length > 0) && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border/40 bg-muted/10">
+            <p className="text-xs text-muted-foreground">
+              {filtered.length} lead{filtered.length !== 1 ? "s" : ""}
+              {(search || statusFilter !== "all") ? " (filtered)" : ""}
+            </p>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  className="flex items-center justify-center w-7 h-7 rounded-lg border border-border/60 text-muted-foreground hover:text-foreground hover:bg-accent/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  disabled={page === 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <span className="text-xs text-muted-foreground px-1">
+                  {page} / {totalPages}
+                </span>
+                <button
+                  className="flex items-center justify-center w-7 h-7 rounded-lg border border-border/60 text-muted-foreground hover:text-foreground hover:bg-accent/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  disabled={page === totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

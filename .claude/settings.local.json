@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:v for k,v in {**d.get\\('dependencies',{}\\),**d.get\\('devDependencies',{}\\)}.items\\(\\) if any\\(x in k for x in ['framer','motion','tailwind','next','react','recharts','shadcn','radix','lucide']\\)}, indent=2\\)\\)\")",
+      "Bash(npm install *)",
+      "Bash(node -e \"require\\('framer-motion'\\); console.log\\('framer-motion ok'\\)\")",
+      "Bash(for f *)",
+      "Bash(npx next *)",
+      "Bash(npx tsc *)",
+      "Bash(Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue)"
+    ]
+  }
+}

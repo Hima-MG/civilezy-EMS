@@ -13,7 +13,13 @@ import type {
 
 export const metadata: Metadata = { title: "Employee Dashboard" };
 
-export default async function EmployeeDashboard() {
+export default async function EmployeeDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
+
   const supabase = await createClient();
 
   const {
@@ -41,10 +47,8 @@ export default async function EmployeeDashboard() {
     leaveHistRes,
     tasksRes,
   ] = await Promise.all([
-    // Current user's profile
     supabase.from("profiles").select("*").eq("id", user.id).single(),
 
-    // Today's attendance record
     supabase
       .from("attendance")
       .select("*")
@@ -52,7 +56,6 @@ export default async function EmployeeDashboard() {
       .eq("attendance_date", today)
       .maybeSingle(),
 
-    // Days present this month
     supabase
       .from("attendance")
       .select("*", { count: "exact", head: true })
@@ -60,7 +63,6 @@ export default async function EmployeeDashboard() {
       .gte("attendance_date", startOfMonth)
       .not("punch_in", "is", null),
 
-    // Approved leaves this year
     supabase
       .from("leave_requests")
       .select("*", { count: "exact", head: true })
@@ -68,14 +70,12 @@ export default async function EmployeeDashboard() {
       .eq("status", "approved")
       .gte("from_date", startOfYear),
 
-    // Pending tasks count
     supabase
       .from("daily_tasks")
       .select("*", { count: "exact", head: true })
       .eq("user_id", user.id)
       .eq("status", "pending"),
 
-    // Attendance history (last 30 records)
     supabase
       .from("attendance")
       .select("*")
@@ -83,7 +83,6 @@ export default async function EmployeeDashboard() {
       .order("attendance_date", { ascending: false })
       .limit(30),
 
-    // Leave history (latest 20)
     supabase
       .from("leave_requests")
       .select("*")
@@ -91,7 +90,6 @@ export default async function EmployeeDashboard() {
       .order("created_at", { ascending: false })
       .limit(20),
 
-    // All tasks
     supabase
       .from("daily_tasks")
       .select("*")
@@ -121,6 +119,11 @@ export default async function EmployeeDashboard() {
   const leaveHistory = (leaveHistRes.data ?? []) as LeaveRequest[];
   const tasks = (tasksRes.data ?? []) as DailyTask[];
 
+  // Validate tab value against known tabs
+  const VALID_TABS = ["overview", "attendance", "leaves", "tasks", "work-reports", "meetings", "profile"] as const;
+  type ValidTab = typeof VALID_TABS[number];
+  const defaultTab: ValidTab = VALID_TABS.includes(tab as ValidTab) ? (tab as ValidTab) : "overview";
+
   return (
     <DashboardLayout
       profile={userProfile}
@@ -134,6 +137,8 @@ export default async function EmployeeDashboard() {
         leaveHistory={leaveHistory}
         tasks={tasks}
         stats={{ presentDays, totalLeaves, todayHours, pendingTasks }}
+        defaultTab={defaultTab}
+        profile={userProfile}
       />
     </DashboardLayout>
   );

@@ -16,6 +16,8 @@ import type {
   LeadStatusPoint,
   AttendanceTrendPoint,
   MonthlyPayrollPoint,
+  LeaveWithProfile,
+  SalaryWithProfile,
 } from "@/types";
 
 export const metadata: Metadata = { title: "Admin Dashboard" };
@@ -59,7 +61,12 @@ function fmtDate(dateStr: string) {
   });
 }
 
-export default async function AdminDashboard() {
+export default async function AdminDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -261,6 +268,46 @@ export default async function AdminDashboard() {
     time: s.created_at,
   }));
 
+  // ── Enrich leaves and salary with names for admin tabs ────────
+  const leavesEnriched = rawLeaves.slice(0, 200).map((l) => ({
+    ...l,
+    full_name: profileMap.get(l.user_id)?.full_name ?? "Unknown",
+    email: profileMap.get(l.user_id)?.email ?? "",
+  }));
+
+  const salaryEnriched = rawSalary.slice(0, 200).map((s) => ({
+    ...s,
+    full_name: profileMap.get(s.user_id)?.full_name ?? "Unknown",
+    email: profileMap.get(s.user_id)?.email ?? "",
+  }));
+
+  // ── CRM: per-CRE lead counts ────────────────────────────────
+  const creLeadCounts: Record<string, { name: string; total: number; converted: number }> = {};
+  for (const lead of rawLeads) {
+    const creId = lead.created_by;
+    if (!creLeadCounts[creId]) {
+      creLeadCounts[creId] = {
+        name: profileMap.get(creId)?.full_name ?? "Unknown",
+        total: 0,
+        converted: 0,
+      };
+    }
+    creLeadCounts[creId].total += 1;
+    if (lead.status === "converted") creLeadCounts[creId].converted += 1;
+  }
+  const topCre = Object.entries(creLeadCounts)
+    .map(([id, v]) => ({ id, ...v }))
+    .sort((a, b) => b.converted - a.converted)
+    .slice(0, 5);
+
+  const VALID_TABS = [
+    "overview", "employees", "finance", "crm", "hr", "analytics", "students", "renewals", "settings",
+  ] as const;
+  type ValidTab = typeof VALID_TABS[number];
+  const defaultTab: ValidTab = VALID_TABS.includes(tab as ValidTab)
+    ? (tab as ValidTab)
+    : "overview";
+
   return (
     <DashboardLayout
       profile={userProfile}
@@ -280,6 +327,10 @@ export default async function AdminDashboard() {
         recentLeaves={recentLeaves}
         recentLeads={recentLeads}
         recentSalary={recentSalary}
+        leavesEnriched={leavesEnriched}
+        salaryEnriched={salaryEnriched}
+        topCre={topCre}
+        defaultTab={defaultTab}
       />
     </DashboardLayout>
   );

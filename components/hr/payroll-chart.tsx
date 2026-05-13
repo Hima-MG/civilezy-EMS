@@ -1,95 +1,69 @@
 "use client";
 
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AnalyticsCard } from "@/components/ds";
+import { EmptyState } from "@/components/ds";
+import { IndianRupee } from "lucide-react";
 import type { MonthlyPayrollPoint } from "@/types";
 
-interface TooltipPayload {
-  value?: number;
-}
-
-function CustomTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: TooltipPayload[];
-  label?: string;
-}) {
-  if (!active || !payload?.length) return null;
-  const val = payload[0]?.value ?? 0;
-  return (
-    <div className="rounded-lg border bg-popover px-3 py-2 text-xs shadow-md">
-      <p className="font-semibold mb-0.5">{label}</p>
-      <p className="text-muted-foreground">
-        ₹{new Intl.NumberFormat("en-IN").format(val)}
-      </p>
-    </div>
-  );
-}
-
-interface PayrollChartProps {
-  data: MonthlyPayrollPoint[];
-}
-
-export function PayrollChart({ data }: PayrollChartProps) {
+export function PayrollChart({ data }: { data: MonthlyPayrollPoint[] }) {
   const hasData = data.some((d) => d.total > 0);
 
+  function fmtINR(v: number) {
+    if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
+    if (v >= 1000)   return `₹${(v / 1000).toFixed(0)}K`;
+    return `₹${v}`;
+  }
+
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold">
-          Monthly Payroll (Last 6 Months)
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {!hasData ? (
-          <div className="flex items-center justify-center h-48 text-xs text-muted-foreground">
-            No salary records yet.
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis
-                dataKey="month"
-                tick={{ fontSize: 11 }}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis
-                tickFormatter={(v: number) =>
-                  v >= 100000
-                    ? `₹${(v / 100000).toFixed(1)}L`
-                    : v >= 1000
-                    ? `₹${(v / 1000).toFixed(0)}K`
-                    : `₹${v}`
-                }
-                tick={{ fontSize: 10 }}
-                tickLine={false}
-                axisLine={false}
-                width={52}
-              />
-              <Tooltip content={<CustomTooltip />} cursor={{ fill: "hsl(var(--muted))" }} />
-              <Bar
-                dataKey="total"
-                fill="hsl(var(--primary))"
-                radius={[4, 4, 0, 0]}
-                maxBarSize={48}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </CardContent>
-    </Card>
+    <AnalyticsCard
+      title="Monthly Payroll"
+      description="Total salary disbursements over the last 6 months"
+      minHeight={220}
+    >
+      {!hasData ? (
+        <EmptyState icon={IndianRupee} title="No payroll data yet" variant="inline" />
+      ) : (
+        <ResponsiveContainer width="100%" height={200}>
+          <AreaChart data={data} margin={{ top: 4, right: 4, left: -4, bottom: 0 }}>
+            <defs>
+              <linearGradient id="payrollGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor="hsl(var(--primary))" stopOpacity={0.18} />
+                <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
+            <XAxis dataKey="month" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+            <YAxis
+              tickFormatter={fmtINR}
+              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+              tickLine={false} axisLine={false} width={48}
+            />
+            <Tooltip
+              contentStyle={{
+                fontSize: 12, borderRadius: 10,
+                border: "1px solid hsl(var(--border))",
+                background: "hsl(var(--popover))",
+                color: "hsl(var(--popover-foreground))",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+              }}
+              cursor={{ stroke: "hsl(var(--border))", strokeWidth: 1 }}
+              formatter={(v) => [`₹${new Intl.NumberFormat("en-IN").format(Number(v ?? 0))}`, "Payroll"]}
+            />
+            <Area
+              type="monotone"
+              dataKey="total"
+              stroke="hsl(var(--primary))"
+              strokeWidth={2}
+              fill="url(#payrollGrad)"
+              dot={{ fill: "hsl(var(--primary))", r: 3, strokeWidth: 0 }}
+              activeDot={{ r: 5, strokeWidth: 0 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
+    </AnalyticsCard>
   );
 }
