@@ -5,7 +5,7 @@ export async function updateSession(request: NextRequest) {
   // Guard: if env vars are missing (e.g. preview deploy without secrets set),
   // return a pass-through response rather than crashing with a TypeError.
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     return { supabaseResponse: NextResponse.next({ request }), user: null };

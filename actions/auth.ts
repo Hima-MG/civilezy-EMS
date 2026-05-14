@@ -48,34 +48,44 @@ export async function loginAction(
     return { success: false, error: "Authentication failed. Please try again." };
   }
 
-  // Use the access_token from the just-completed sign-in as the Authorization
-  // header. This avoids the cookie-timing problem (new session tokens land in
-  // *response* cookies; the SSR client's getAll() reads *request* cookies)
-  // without requiring a service-role key.
+  // Use the access_token from signInWithPassword as the Authorization header.
+  // This sidesteps the cookie-timing problem (new session tokens land in
+  // *response* cookies; the SSR client's getAll() reads *request* cookies).
   const authedClient = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: { getAll: () => [], setAll: () => {} },
       global: { headers: { Authorization: `Bearer ${session.access_token}` } },
     }
   );
 
-  const { data: profile, error: profileError } = await authedClient
+  // maybeSingle() returns null instead of throwing when no row is found.
+  let { data: profile } = await authedClient
     .from("profiles")
     .select("role")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
-  if (profileError || !profile) {
-    await supabase.auth.signOut();
-    return {
-      success: false,
-      error: "Profile not found. Please contact an administrator.",
-    };
+  // Auto-create profile if the database trigger didn't fire (e.g. fresh project
+  // without migrations applied, or a race condition during first sign-up).
+  if (!profile) {
+    const { data: created } = await authedClient
+      .from("profiles")
+      .insert({
+        id: user.id,
+        email: user.email ?? "",
+        full_name: (user.user_metadata?.full_name as string | undefined) ?? "",
+        role: "employee",
+      })
+      .select("role")
+      .maybeSingle();
+
+    profile = created;
   }
 
-  const role = profile.role as Role;
+  // Fall back to "employee" if creation also failed (e.g. RLS not yet applied).
+  const role = ((profile?.role as Role | undefined) ?? "employee") as Role;
 
   revalidatePath("/", "layout");
   redirect(getRoleDashboardPath(role));
@@ -86,22 +96,4 @@ export async function logoutAction(): Promise<void> {
   await supabase.auth.signOut();
   revalidatePath("/", "layout");
   redirect("/login");
-}
-
-export async function getSessionAction() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
-  return { user, profile };
 }
