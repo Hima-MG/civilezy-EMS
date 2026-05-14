@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Eye, EyeOff, Loader2, Mail, Lock } from "lucide-react";
 import { useState } from "react";
@@ -20,7 +21,7 @@ function SubmitButton() {
       {pending ? (
         <>
           <Loader2 className="animate-spin" />
-          Signing in...
+          Signing in…
         </>
       ) : (
         "Sign in"
@@ -30,6 +31,7 @@ function SubmitButton() {
 }
 
 export function LoginForm() {
+  const router = useRouter();
   const [state, formAction] = useActionState(loginAction, initialState);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -37,7 +39,10 @@ export function LoginForm() {
     if (state.success === false && state.error) {
       toast.error(state.error);
     }
-  }, [state]);
+    if (state.success === true && state.redirectTo) {
+      router.push(state.redirectTo);
+    }
+  }, [state, router]);
 
   return (
     <form action={formAction} className="space-y-4">

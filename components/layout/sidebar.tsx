@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useTransition } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard, User, Clock, CalendarOff, FileText,
   CheckSquare, Users, Building2, MapPin, Phone, BarChart2,
@@ -216,7 +216,16 @@ function SidebarContent({
   onToggleCollapse?: () => void;
   layoutScope: string;
 }) {
+  const router = useRouter();
+  const [loggingOut, startLogout] = useTransition();
   const navItems = NAV_CONFIG[role] ?? [];
+
+  function handleLogout() {
+    startLogout(async () => {
+      await logoutAction();
+      router.push("/login");
+    });
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -337,31 +346,33 @@ function SidebarContent({
           </div>
         )}
 
-        <form action={logoutAction}>
-          {collapsed ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="submit"
-                  className="flex items-center justify-center w-9 h-8 mx-auto rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" sideOffset={10} className="text-xs">
-                Sign out
-              </TooltipContent>
-            </Tooltip>
-          ) : (
-            <button
-              type="submit"
-              className="flex items-center gap-2.5 w-full px-2 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-            >
-              <LogOut className="w-3.5 h-3.5 shrink-0" />
+        {collapsed ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="flex items-center justify-center w-9 h-8 mx-auto rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors disabled:opacity-50"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right" sideOffset={10} className="text-xs">
               Sign out
-            </button>
-          )}
-        </form>
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="flex items-center gap-2.5 w-full px-2 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors disabled:opacity-50"
+          >
+            <LogOut className="w-3.5 h-3.5 shrink-0" />
+            {loggingOut ? "Signing out…" : "Sign out"}
+          </button>
+        )}
       </div>
     </div>
   );

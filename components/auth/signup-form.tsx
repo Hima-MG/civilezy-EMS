@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 import {
@@ -59,6 +60,7 @@ function SubmitButton() {
 const initialState: ActionResult = { success: false, error: "" };
 
 export function SignupForm() {
+  const router = useRouter();
   const [state, formAction] = useActionState(signupAction, initialState);
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<string>("employee");
@@ -70,7 +72,10 @@ export function SignupForm() {
     if (state.success === true && state.message) {
       toast.success(state.message, { duration: 8000 });
     }
-  }, [state]);
+    if (state.success === true && state.redirectTo) {
+      router.push(state.redirectTo);
+    }
+  }, [state, router]);
 
   return (
     <form action={formAction} className="space-y-4">

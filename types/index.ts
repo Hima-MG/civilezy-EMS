@@ -70,7 +70,7 @@ export interface AuthUser {
 }
 
 export type ActionResult<T = void> =
-  | { success: true; data: T; message?: string }
+  | { success: true; data: T; message?: string; redirectTo?: string }
   | { success: false; error: string };
 
 export interface NavItem {

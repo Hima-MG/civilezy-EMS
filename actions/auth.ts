@@ -1,6 +1,5 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createServerClient } from "@supabase/ssr";
@@ -19,7 +18,10 @@ const ALLOWED_SIGNUP_ROLES = ["employee", "cre", "hr_finance"] as const;
 type SignupRole = (typeof ALLOWED_SIGNUP_ROLES)[number];
 
 const signupSchema = z.object({
-  full_name: z.string().min(2, "Full name must be at least 2 characters").max(80),
+  full_name: z
+    .string()
+    .min(2, "Full name must be at least 2 characters")
+    .max(80),
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   role: z.enum(ALLOWED_SIGNUP_ROLES, { message: "Invalid role selected" }),
@@ -29,10 +31,10 @@ const signupSchema = z.object({
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
- * Creates an authenticated Supabase client using a Bearer token from a fresh
- * sign-in session. Required because new session tokens land in *response*
- * cookies and the SSR server client reads *request* cookies — so the freshly
- * signed-in user's JWT isn't yet visible to a regular server client.
+ * Creates an authenticated Supabase client using a Bearer token.
+ * Needed right after signInWithPassword: new session tokens are on the
+ * *response* cookies but the SSR client reads *request* cookies, so the
+ * fresh JWT isn't visible yet. Bearer header bypasses that gap entirely.
  */
 function createAuthedClient(accessToken: string) {
   return createServerClient(
@@ -79,11 +81,12 @@ export async function loginAction(
   }
 
   if (!user || !session) {
-    return { success: false, error: "Authentication failed. Please try again." };
+    return {
+      success: false,
+      error: "Authentication failed. Please try again.",
+    };
   }
 
-  // Fetch the profile using the fresh access token (bypasses the cookie
-  // timing gap where the new session isn't yet visible in request cookies).
   const authedClient = createAuthedClient(session.access_token);
 
   let { data: profile } = await authedClient
@@ -92,12 +95,11 @@ export async function loginAction(
     .eq("id", user.id)
     .maybeSingle();
 
-  // Auto-repair: profile row is missing — create it now.
-  // Try the authedClient first (works via the self-insert RLS policy from
-  // migration 006, no service key required). Fall back to the admin client
-  // if available so it can bypass RLS as a last resort.
+  // Auto-repair: profile row missing — create it with the authedClient first
+  // (RLS INSERT policy from migration 006, no service key needed), then fall
+  // back to the admin client if the first attempt fails.
   if (!profile) {
-    const profilePayload = {
+    const payload = {
       id: user.id,
       email: user.email ?? "",
       full_name: (user.user_metadata?.full_name as string | undefined) ?? "",
@@ -105,26 +107,24 @@ export async function loginAction(
       employee_category: null,
     };
 
-    // Attempt 1: authedClient — uses Bearer token, allowed by RLS INSERT policy
     const { data: created } = await authedClient
       .from("profiles")
-      .insert(profilePayload)
+      .insert(payload)
       .select("role, is_active")
       .maybeSingle();
     profile = created;
 
-    // Attempt 2: admin client (requires SUPABASE_SERVICE_ROLE_KEY)
     if (!profile) {
       try {
         const adminClient = createAdminClient();
         const { data: adminCreated } = await adminClient
           .from("profiles")
-          .insert(profilePayload)
+          .insert(payload)
           .select("role, is_active")
           .maybeSingle();
         profile = adminCreated;
       } catch {
-        // Service role key not configured — fall through to the error below
+        // SUPABASE_SERVICE_ROLE_KEY not set — fall through
       }
     }
   }
@@ -133,7 +133,7 @@ export async function loginAction(
     return {
       success: false,
       error:
-        "Profile not found. Please ask your administrator to set up your account profile.",
+        "Profile not found. Please ask your administrator to set up your account.",
     };
   }
 
@@ -147,8 +147,15 @@ export async function loginAction(
   }
 
   const role = profile.role as Role;
+  const redirectTo = getRoleDashboardPath(role);
+
   revalidatePath("/", "layout");
-  redirect(getRoleDashboardPath(role));
+
+  // Return the redirect path — the client component calls router.push().
+  // Never call redirect() inside a server action used with useActionState:
+  // it throws NEXT_REDIRECT which the action wire protocol can't serialise,
+  // causing "unexpected response" on the client in production.
+  return { success: true, data: undefined, redirectTo };
 }
 
 // ── Signup ────────────────────────────────────────────────────────────────────
@@ -177,9 +184,8 @@ export async function signupAction(
 
   const supabase = await createClient();
 
-  // Create the auth user.
-  // Pass role and employee_category in metadata so the handle_new_user
-  // trigger (migration 007) can write them even without a service key.
+  // Pass role + category in metadata so the handle_new_user DB trigger
+  // (migration 007) can write them even when no service key is available.
   const {
     data: { user },
     error: signUpError,
@@ -202,13 +208,11 @@ export async function signupAction(
     };
   }
 
-  // Create the profile row using the admin client to reliably bypass RLS.
-  // This ensures "Profile not found" never happens after a successful signup.
+  // Upsert profile via admin client (bypasses RLS, most reliable).
+  // The handle_new_user trigger already created a bare row — upsert
+  // overwrites it with the user-selected role and category.
   try {
     const adminClient = createAdminClient();
-    // Upsert rather than insert because the handle_new_user trigger fires
-    // synchronously during auth.signUp() and creates a bare profile row.
-    // The upsert overwrites that row with the user-selected role and category.
     const { error: profileError } = await adminClient
       .from("profiles")
       .upsert(
@@ -223,23 +227,20 @@ export async function signupAction(
       );
 
     if (profileError) {
-      // Profile insert failed — the auth user was created but the profile
-      // wasn't. Delete the dangling auth user to keep state consistent, then
-      // return an actionable error.
       await adminClient.auth.admin.deleteUser(user.id);
       return {
         success: false,
-        error: "Failed to create account profile. Please contact your administrator.",
+        error:
+          "Failed to create account profile. Please contact your administrator.",
       };
     }
   } catch {
-    // Service role key not configured — the Supabase trigger on auth.users
-    // should handle profile creation in this case. Fall through.
+    // Service key not set — trigger + Bearer-token update (below) handle it
   }
 
-  // Sign the new user in immediately so they land on their dashboard.
-  // This fails when Supabase email confirmation is enabled — in that case
-  // we return a success message telling them to check their inbox.
+  // Auto sign-in after signup.
+  // Fails when Supabase email confirmation is required — that's fine, we
+  // return a "check your inbox" message. No redirect() call here.
   const {
     data: { session },
     error: signInError,
@@ -250,19 +251,36 @@ export async function signupAction(
       success: true,
       data: undefined,
       message:
-        "Account created! Please check your email and click the confirmation link, then sign in.",
+        "Account created! Check your email and click the confirmation link, then sign in.",
     };
   }
 
+  // Ensure correct role/category via Bearer token — reliable fallback when
+  // the admin client upsert above was skipped due to missing service key.
+  const signedInClient = createAuthedClient(session.access_token);
+  await signedInClient
+    .from("profiles")
+    .update({
+      role: role as SignupRole,
+      employee_category: (employee_category as EmployeeCategory) ?? null,
+      full_name,
+    })
+    .eq("id", session.user.id);
+
   revalidatePath("/", "layout");
-  redirect(getRoleDashboardPath(role as Role));
+
+  return {
+    success: true,
+    data: undefined,
+    redirectTo: getRoleDashboardPath(role as Role),
+  };
 }
 
 // ── Logout ────────────────────────────────────────────────────────────────────
 
-export async function logoutAction(): Promise<void> {
+export async function logoutAction(): Promise<ActionResult> {
   const supabase = await createClient();
   await supabase.auth.signOut();
   revalidatePath("/", "layout");
-  redirect("/login");
+  return { success: true, data: undefined, redirectTo: "/login" };
 }

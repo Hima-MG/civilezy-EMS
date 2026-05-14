@@ -5,6 +5,15 @@ const DASHBOARD_PREFIXES = ["/admin", "/hr", "/cre", "/employee"];
 const AUTH_PATHS = ["/login", "/signup"];
 
 export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Let auth pages and Supabase auth callback pass through without any
+  // session check — avoids interfering with the login/signup POST and the
+  // email-confirmation redirect.
+  if (pathname.startsWith("/auth/")) {
+    return NextResponse.next({ request });
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -41,8 +50,6 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const { pathname } = request.nextUrl;
 
   // Unauthenticated users trying to access a dashboard → send to login
   const isDashboardRoute = DASHBOARD_PREFIXES.some((p) =>
