@@ -22,9 +22,7 @@ const signupSchema = z.object({
   full_name: z.string().min(2, "Full name must be at least 2 characters").max(80),
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
-  role: z.enum(ALLOWED_SIGNUP_ROLES, {
-    errorMap: () => ({ message: "Invalid role selected" }),
-  }),
+  role: z.enum(ALLOWED_SIGNUP_ROLES, { message: "Invalid role selected" }),
   employee_category: z.string().nullable().optional(),
 });
 
