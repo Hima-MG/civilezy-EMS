@@ -88,30 +88,44 @@ export async function loginAction(
 
   let { data: profile } = await authedClient
     .from("profiles")
-    .select("role")
+    .select("role, is_active")
     .eq("id", user.id)
     .maybeSingle();
 
-  // Auto-repair: if profile row is missing, create it now via the admin client
-  // so it bypasses any RLS policy that might block a self-insert.
+  // Auto-repair: profile row is missing — create it now.
+  // Try the authedClient first (works via the self-insert RLS policy from
+  // migration 006, no service key required). Fall back to the admin client
+  // if available so it can bypass RLS as a last resort.
   if (!profile) {
-    try {
-      const adminClient = createAdminClient();
-      const { data: created } = await adminClient
-        .from("profiles")
-        .insert({
-          id: user.id,
-          email: user.email ?? "",
-          full_name:
-            (user.user_metadata?.full_name as string | undefined) ?? "",
-          role: "employee" as Role,
-          employee_category: null,
-        })
-        .select("role")
-        .maybeSingle();
-      profile = created;
-    } catch {
-      // Service role key not configured — fall through to the error below
+    const profilePayload = {
+      id: user.id,
+      email: user.email ?? "",
+      full_name: (user.user_metadata?.full_name as string | undefined) ?? "",
+      role: "employee" as Role,
+      employee_category: null,
+    };
+
+    // Attempt 1: authedClient — uses Bearer token, allowed by RLS INSERT policy
+    const { data: created } = await authedClient
+      .from("profiles")
+      .insert(profilePayload)
+      .select("role, is_active")
+      .maybeSingle();
+    profile = created;
+
+    // Attempt 2: admin client (requires SUPABASE_SERVICE_ROLE_KEY)
+    if (!profile) {
+      try {
+        const adminClient = createAdminClient();
+        const { data: adminCreated } = await adminClient
+          .from("profiles")
+          .insert(profilePayload)
+          .select("role, is_active")
+          .maybeSingle();
+        profile = adminCreated;
+      } catch {
+        // Service role key not configured — fall through to the error below
+      }
     }
   }
 
@@ -120,6 +134,15 @@ export async function loginAction(
       success: false,
       error:
         "Profile not found. Please ask your administrator to set up your account profile.",
+    };
+  }
+
+  if (profile.is_active === false) {
+    await supabase.auth.signOut();
+    return {
+      success: false,
+      error:
+        "Your account is pending approval. Please contact your administrator.",
     };
   }
 
@@ -154,7 +177,9 @@ export async function signupAction(
 
   const supabase = await createClient();
 
-  // Create the auth user
+  // Create the auth user.
+  // Pass role and employee_category in metadata so the handle_new_user
+  // trigger (migration 007) can write them even without a service key.
   const {
     data: { user },
     error: signUpError,
@@ -162,7 +187,7 @@ export async function signupAction(
     email,
     password,
     options: {
-      data: { full_name },
+      data: { full_name, role, employee_category: employee_category ?? null },
     },
   });
 
@@ -213,14 +238,20 @@ export async function signupAction(
   }
 
   // Sign the new user in immediately so they land on their dashboard.
+  // This fails when Supabase email confirmation is enabled — in that case
+  // we return a success message telling them to check their inbox.
   const {
     data: { session },
     error: signInError,
   } = await supabase.auth.signInWithPassword({ email, password });
 
   if (signInError || !session) {
-    // Account created but auto-login failed — send them to login page.
-    redirect("/login");
+    return {
+      success: true,
+      data: undefined,
+      message:
+        "Account created! Please check your email and click the confirmation link, then sign in.",
+    };
   }
 
   revalidatePath("/", "layout");

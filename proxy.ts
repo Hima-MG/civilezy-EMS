@@ -55,9 +55,10 @@ export async function proxy(request: NextRequest) {
   }
 
   // Authenticated users hitting auth pages → redirect to their dashboard.
-  // Redirect to /employee as the safe default; the dashboard page performs
-  // the role-based redirect to the correct dashboard URL.
-  if (user && AUTH_PATHS.includes(pathname)) {
+  // Only applies to GET requests (page loads). POST requests are Server
+  // Actions — redirecting them causes "unexpected response" on the client
+  // because React can't handle a 3xx as a server action response.
+  if (request.method === "GET" && user && AUTH_PATHS.includes(pathname)) {
     const dashUrl = request.nextUrl.clone();
     dashUrl.pathname = "/employee";
     return NextResponse.redirect(dashUrl);

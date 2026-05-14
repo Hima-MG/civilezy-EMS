@@ -67,6 +67,9 @@ export function SignupForm() {
     if (state.success === false && state.error) {
       toast.error(state.error);
     }
+    if (state.success === true && state.message) {
+      toast.success(state.message, { duration: 8000 });
+    }
   }, [state]);
 
   return (
