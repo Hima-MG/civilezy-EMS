@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -47,6 +47,7 @@ const LEAVE_TYPES = [
 
 export function LeaveForm() {
   const router = useRouter();
+  const [, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -72,7 +73,7 @@ export function LeaveForm() {
       toast.success("Leave request submitted successfully.");
       form.reset();
       setOpen(false);
-      router.refresh();
+      startTransition(() => router.refresh());
     } else {
       toast.error(result.error);
     }

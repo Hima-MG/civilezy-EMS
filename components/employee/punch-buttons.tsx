@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { LogIn, LogOut, Loader2 } from "lucide-react";
@@ -14,6 +14,7 @@ interface PunchButtonsProps {
 
 export function PunchButtons({ todayRecord }: PunchButtonsProps) {
   const router = useRouter();
+  const [, startTransition] = useTransition();
   const [loading, setLoading] = useState<"in" | "out" | null>(null);
 
   const hasPunchedIn = !!todayRecord?.punch_in;
@@ -25,7 +26,7 @@ export function PunchButtons({ todayRecord }: PunchButtonsProps) {
       const result = await punchInAction();
       if (result.success) {
         toast.success("Punched in! Have a productive day.");
-        router.refresh();
+        startTransition(() => router.refresh());
       } else {
         toast.error(result.error);
       }
@@ -41,7 +42,7 @@ export function PunchButtons({ todayRecord }: PunchButtonsProps) {
       if (result.success) {
         const hours = result.data.total_hours;
         toast.success(`Punched out. Total: ${hours}h logged.`);
-        router.refresh();
+        startTransition(() => router.refresh());
       } else {
         toast.error(result.error);
       }

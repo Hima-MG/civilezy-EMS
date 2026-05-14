@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,6 +23,7 @@ type TaskFormValues = z.infer<typeof taskSchema>;
 
 export function TaskForm() {
   const router = useRouter();
+  const [, startTransition] = useTransition();
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
@@ -40,7 +41,7 @@ export function TaskForm() {
       toast.success("Task added.");
       form.reset();
       setExpanded(false);
-      router.refresh();
+      startTransition(() => router.refresh());
     } else {
       toast.error(result.error);
     }

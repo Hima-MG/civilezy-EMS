@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, X, Download, CalendarOff } from "lucide-react";
@@ -49,6 +49,7 @@ interface LeaveManagementProps {
 
 export function LeaveManagement({ leaves, profiles }: LeaveManagementProps) {
   const router = useRouter();
+  const [, startTransition] = useTransition();
   const [statusFilter,   setStatusFilter]   = useState<LeaveStatus | "all">("all");
   const [employeeFilter, setEmployeeFilter] = useState("all");
   const [loadingId,      setLoadingId]      = useState<string | null>(null);
@@ -65,7 +66,7 @@ export function LeaveManagement({ leaves, profiles }: LeaveManagementProps) {
     setLoadingId(null);
     if (result.success) {
       toast.success(`Leave ${status === "approved" ? "approved" : "rejected"}.`);
-      router.refresh();
+      startTransition(() => router.refresh());
     } else {
       toast.error(result.error);
     }

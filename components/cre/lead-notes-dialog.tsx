@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -76,6 +76,7 @@ export function LeadNotesDialog({
   children,
 }: LeadNotesDialogProps) {
   const router = useRouter();
+  const [, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -94,7 +95,7 @@ export function LeadNotesDialog({
     if (result.success) {
       toast.success("Note added.");
       form.reset();
-      router.refresh();
+      startTransition(() => router.refresh());
     } else {
       toast.error(result.error);
     }
@@ -109,7 +110,7 @@ export function LeadNotesDialog({
     if (result.success) {
       setCurrentStatus(newStatus);
       toast.success(`Status updated to ${newStatus.replace("_", " ")}.`);
-      router.refresh();
+      startTransition(() => router.refresh());
     } else {
       toast.error(result.error);
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -67,6 +67,7 @@ interface SalaryFormProps {
 
 function SalaryFormDialog({ profiles, attendance, onSuccess }: SalaryFormProps) {
   const router = useRouter();
+  const [, startTransition] = useTransition();
   const [open,    setOpen]    = useState(false);
   const [loading, setLoading] = useState(false);
   const prevComboRef = useRef("");
@@ -119,7 +120,7 @@ function SalaryFormDialog({ profiles, attendance, onSuccess }: SalaryFormProps) 
       prevComboRef.current = "";
       setOpen(false);
       onSuccess();
-      router.refresh();
+      startTransition(() => router.refresh());
     } else {
       toast.error(result.error);
     }
@@ -243,6 +244,7 @@ interface SalaryManagerProps {
 
 export function SalaryManager({ salaryRecords, profiles, attendance }: SalaryManagerProps) {
   const router = useRouter();
+  const [, startTransition] = useTransition();
   const [monthFilter, setMonthFilter] = useState("all");
   const [loadingId,   setLoadingId]   = useState<string | null>(null);
 
@@ -262,17 +264,17 @@ export function SalaryManager({ salaryRecords, profiles, attendance }: SalaryMan
     setLoadingId(id);
     const result = await markSalaryPaidAction(id);
     setLoadingId(null);
-    if (result.success) { toast.success("Marked as paid."); router.refresh(); }
+    if (result.success) { toast.success("Marked as paid."); startTransition(() => router.refresh()); }
     else toast.error(result.error);
-  }, [router]);
+  }, [router, startTransition]);
 
   const handleDelete = useCallback(async (id: string) => {
     setLoadingId(id);
     const result = await deleteSalaryRecordAction(id);
     setLoadingId(null);
-    if (result.success) { toast.success("Salary record deleted."); router.refresh(); }
+    if (result.success) { toast.success("Salary record deleted."); startTransition(() => router.refresh()); }
     else toast.error(result.error);
-  }, [router]);
+  }, [router, startTransition]);
 
   function handleExport() {
     const header = ["Employee", "Email", "Month", "Working Days", "Present Days", "Base Salary", "Bonus", "Deductions", "Final Salary", "Status"];

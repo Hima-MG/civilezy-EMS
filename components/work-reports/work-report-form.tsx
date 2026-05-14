@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -49,6 +49,7 @@ const today = new Date().toISOString().split("T")[0];
 
 export function WorkReportForm({ employeeCategory }: WorkReportFormProps) {
   const router = useRouter();
+  const [, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -75,7 +76,7 @@ export function WorkReportForm({ employeeCategory }: WorkReportFormProps) {
       toast.success("Work report submitted.");
       form.reset({ sub_category: "", title: "", description: "", status: "completed", report_date: today });
       setOpen(false);
-      router.refresh();
+      startTransition(() => router.refresh());
     } else {
       toast.error(result.error);
     }

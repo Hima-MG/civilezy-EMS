@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Trash2, Loader2, ClipboardList } from "lucide-react";
@@ -38,6 +38,7 @@ interface WorkReportTableProps {
 
 export function WorkReportTable({ reports, showDelete = true }: WorkReportTableProps) {
   const router = useRouter();
+  const [, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function handleDelete(id: string) {
@@ -46,7 +47,7 @@ export function WorkReportTable({ reports, showDelete = true }: WorkReportTableP
     setDeletingId(null);
     if (result.success) {
       toast.success("Report deleted.");
-      router.refresh();
+      startTransition(() => router.refresh());
     } else {
       toast.error(result.error);
     }

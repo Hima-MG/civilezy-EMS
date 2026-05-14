@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, Play, CheckCheck, Trash2 } from "lucide-react";
@@ -34,6 +34,7 @@ interface TaskListProps {
 
 export function TaskList({ tasks }: TaskListProps) {
   const router = useRouter();
+  const [, startTransition] = useTransition();
   const [filter, setFilter] = useState<Filter>("all");
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
@@ -46,7 +47,7 @@ export function TaskList({ tasks }: TaskListProps) {
     setLoadingId(null);
     if (result.success) {
       toast.success("Task updated.");
-      router.refresh();
+      startTransition(() => router.refresh());
     } else {
       toast.error(result.error);
     }
@@ -58,7 +59,7 @@ export function TaskList({ tasks }: TaskListProps) {
     setLoadingId(null);
     if (result.success) {
       toast.success("Task deleted.");
-      router.refresh();
+      startTransition(() => router.refresh());
     } else {
       toast.error(result.error);
     }

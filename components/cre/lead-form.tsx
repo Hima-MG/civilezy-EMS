@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -58,6 +58,7 @@ const STATUSES = [
 
 export function LeadForm() {
   const router = useRouter();
+  const [, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -86,7 +87,7 @@ export function LeadForm() {
       toast.success("Lead added successfully.");
       form.reset();
       setOpen(false);
-      router.refresh();
+      startTransition(() => router.refresh());
     } else {
       toast.error(result.error);
     }
