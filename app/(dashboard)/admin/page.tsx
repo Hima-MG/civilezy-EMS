@@ -16,8 +16,6 @@ import type {
   LeadStatusPoint,
   AttendanceTrendPoint,
   MonthlyPayrollPoint,
-  LeaveWithProfile,
-  SalaryWithProfile,
 } from "@/types";
 
 export const metadata: Metadata = { title: "Admin Dashboard" };

@@ -60,6 +60,9 @@ export function LeaveForm() {
     },
   });
 
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const watchedLeaveType = form.watch("leave_type");
+
   const onSubmit = form.handleSubmit(async (values) => {
     setLoading(true);
     const result = await applyLeaveAction(values);
@@ -93,7 +96,7 @@ export function LeaveForm() {
           <div className="space-y-1.5">
             <Label>Leave Type</Label>
             <Select
-              value={form.watch("leave_type")}
+              value={watchedLeaveType}
               onValueChange={(v) =>
                 form.setValue("leave_type", v as LeaveFormValues["leave_type"], {
                   shouldValidate: true,

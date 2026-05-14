@@ -10,7 +10,7 @@ import {
   DollarSign, UserPlus, TrendingUp, UserCheck, Target,
   Briefcase, LineChart, Settings, Shield, LogOut,
   ClipboardList, Calendar, CreditCard, ChevronLeft, ChevronRight,
-  Building, Zap, X, GraduationCap, RefreshCw,
+  Zap, X, GraduationCap, RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_CONFIG } from "@/lib/nav-config";

@@ -23,7 +23,6 @@ import type {
   SalaryWithProfile,
   HrAnalytics,
   MonthlyPayrollPoint,
-  LeaveStatus,
 } from "@/types";
 
 // ── Helpers ─────────────────────────────────────────────────────────

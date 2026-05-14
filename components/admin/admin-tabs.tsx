@@ -28,7 +28,6 @@ import type {
   UserProfile,
   LeaveWithProfile,
   SalaryWithProfile,
-  LeaveStatus,
 } from "@/types";
 
 // ── Helpers ────────────────────────────────────────────────────────

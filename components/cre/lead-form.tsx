@@ -73,6 +73,10 @@ export function LeadForm() {
     },
   });
 
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const watchedSource = form.watch("source");
+  const watchedStatus = form.watch("status");
+
   const onSubmit = form.handleSubmit(async (values) => {
     setLoading(true);
     const result = await addLeadAction(values);
@@ -153,7 +157,7 @@ export function LeadForm() {
             <div className="space-y-1.5">
               <Label>Source</Label>
               <Select
-                value={form.watch("source")}
+                value={watchedSource}
                 onValueChange={(v) =>
                   form.setValue("source", v, { shouldValidate: true })
                 }
@@ -174,7 +178,7 @@ export function LeadForm() {
             <div className="space-y-1.5">
               <Label>Status</Label>
               <Select
-                value={form.watch("status")}
+                value={watchedStatus}
                 onValueChange={(v) =>
                   form.setValue(
                     "status",

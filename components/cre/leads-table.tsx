@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Search, Plus, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { LeadStatusBadge, LEAD_STATUS_CONFIG } from "./lead-status-badge";
 import { LeadNotesDialog } from "./lead-notes-dialog";
 import { LeadForm } from "./lead-form";

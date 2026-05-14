@@ -2,12 +2,10 @@
 
 import {
   Users, Target, TrendingUp, PhoneCall, User, Mail,
-  Phone, Building2, Briefcase, CalendarDays, CheckSquare,
+  Phone, Building2, Briefcase, CalendarDays,
   ArrowRight, MessageSquare,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import {
   KpiCard, HeroCard, ActivityFeed, EmptyState, StatusBadge,
 } from "@/components/ds";
@@ -377,7 +375,6 @@ export function CreTabs({
               </thead>
               <tbody>
                 {PIPELINE_STAGES.map((stage) => {
-                  const cfg   = LEAD_STATUS_CONFIG[stage];
                   const count = leads.filter((l) => l.status === stage).length;
                   const pct   = analytics.totalLeads > 0 ? Math.round((count / analytics.totalLeads) * 100) : 0;
                   return (

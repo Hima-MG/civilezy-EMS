@@ -16,7 +16,7 @@ interface AdminWorkReportsViewProps {
   employees: Pick<UserProfile, "id" | "full_name" | "email" | "employee_category">[];
 }
 
-export function AdminWorkReportsView({ reports, employees }: AdminWorkReportsViewProps) {
+export function AdminWorkReportsView({ reports }: AdminWorkReportsViewProps) {
   const [employeeFilter, setEmployeeFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [dateFilter,     setDateFilter]     = useState("");

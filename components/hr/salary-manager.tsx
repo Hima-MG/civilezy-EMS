@@ -81,6 +81,7 @@ function SalaryFormDialog({ profiles, attendance, onSuccess }: SalaryFormProps) 
   });
 
   const { setValue } = form;
+  // eslint-disable-next-line react-hooks/incompatible-library
   const watchedUserId = form.watch("user_id");
   const watchedMonth  = form.watch("month");
   const [baseSalary, workingDays, presentDays, bonus, deductions] = form.watch([
@@ -141,7 +142,7 @@ function SalaryFormDialog({ profiles, attendance, onSuccess }: SalaryFormProps) 
         <form onSubmit={onSubmit} className="space-y-4 mt-2">
           <div className="space-y-1.5">
             <Label>Employee <span className="text-destructive">*</span></Label>
-            <Select value={form.watch("user_id")} onValueChange={(v) => form.setValue("user_id", v, { shouldValidate: true })}>
+            <Select value={watchedUserId} onValueChange={(v) => form.setValue("user_id", v, { shouldValidate: true })}>
               <SelectTrigger><SelectValue placeholder="Select employee…" /></SelectTrigger>
               <SelectContent>
                 {profiles.map((p) => (
