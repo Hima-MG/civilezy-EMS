@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 const DASHBOARD_PREFIXES = ["/admin", "/hr", "/cre", "/employee"];
 const AUTH_PATHS = ["/login", "/signup"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -55,8 +55,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // Authenticated users hitting auth pages → redirect to their dashboard.
-  // We redirect to /employee as the safe default; the dashboard page itself
-  // will perform the role-based redirect to the correct dashboard URL.
+  // Redirect to /employee as the safe default; the dashboard page performs
+  // the role-based redirect to the correct dashboard URL.
   if (user && AUTH_PATHS.includes(pathname)) {
     const dashUrl = request.nextUrl.clone();
     dashUrl.pathname = "/employee";
