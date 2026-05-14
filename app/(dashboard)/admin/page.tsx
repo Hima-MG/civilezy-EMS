@@ -97,7 +97,7 @@ export default async function AdminDashboard({
     leadsResult,
   ] = await Promise.all([
     // Current user's profile (for role check)
-    supabase.from("profiles").select("*").eq("id", user.id).single(),
+    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
 
     supabase
       .from("profiles")

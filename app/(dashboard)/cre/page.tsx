@@ -40,7 +40,7 @@ export default async function CREDashboard({
   if (!user) redirect("/login");
 
   const [profileResult, leadsResult] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", user.id).single(),
+    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
     supabase
       .from("leads")
       .select("*")

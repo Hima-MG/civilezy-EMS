@@ -17,7 +17,7 @@ export default async function EmployeeWorkReportsPage() {
   if (!user) redirect("/login");
 
   const [profileResult, reportsResult] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", user.id).single(),
+    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
     supabase
       .from("work_reports")
       .select("*")

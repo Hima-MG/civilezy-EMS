@@ -47,7 +47,7 @@ export default async function EmployeeDashboard({
     leaveHistRes,
     tasksRes,
   ] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", user.id).single(),
+    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
 
     supabase
       .from("attendance")

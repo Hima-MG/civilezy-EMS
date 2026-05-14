@@ -50,7 +50,7 @@ export default async function HRDashboard({
   const [profileResult, profilesResult, attendanceResult, leavesResult, salaryResult] =
     await Promise.all([
       // Current user's profile (for role check)
-      supabase.from("profiles").select("*").eq("id", user.id).single(),
+      supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
 
       // All active employee profiles (fixed HR RLS policy via get_my_role())
       supabase

@@ -84,9 +84,15 @@ export async function loginAction(
     profile = created;
   }
 
-  // Fall back to "employee" if creation also failed (e.g. RLS not yet applied).
-  const role = ((profile?.role as Role | undefined) ?? "employee") as Role;
+  if (!profile) {
+    return {
+      success: false,
+      error:
+        "Account profile not found. Please ask your administrator to create your profile in the system.",
+    };
+  }
 
+  const role = profile.role as Role;
   revalidatePath("/", "layout");
   redirect(getRoleDashboardPath(role));
 }
