@@ -1,5 +1,13 @@
 export type Role = "employee" | "cre" | "hr_finance" | "admin";
-export type EmployeeCategory = "content_creator" | "tech_lead" | "digital_marketer";
+
+export type EmployeeCategory =
+  | "content_creator"
+  | "content_manager"
+  | "tech_lead"
+  | "digital_marketer"
+  | "management"
+  | "finance"
+  | "sales";
 
 // ── Employee Module ──────────────────────────────────────────
 

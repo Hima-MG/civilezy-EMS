@@ -15,7 +15,7 @@ async function assertAdminRole() {
     .from("profiles")
     .select("role")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
   if (!profile || profile.role !== "admin") {
     return { supabase: null, user: null, error: "Access denied" };

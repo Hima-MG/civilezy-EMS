@@ -39,7 +39,7 @@ export function useUser(): UseUserReturn {
         .from("profiles")
         .select("*")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
       if (!cancelled) {
         setProfile(data as UserProfile | null);

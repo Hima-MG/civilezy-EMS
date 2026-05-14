@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Building2 } from "lucide-react";
-import { LoginForm } from "@/components/auth/login-form";
+import { Building2, ShieldCheck } from "lucide-react";
+import { SignupForm } from "@/components/auth/signup-form";
 
 export const metadata: Metadata = {
-  title: "Login",
+  title: "Create Account",
 };
 
-export default function LoginPage() {
+export default function SignupPage() {
   return (
     <div className="w-full max-w-md">
       {/* Brand */}
@@ -24,22 +24,31 @@ export default function LoginPage() {
       {/* Form card */}
       <div className="rounded-2xl border bg-card p-8 shadow-sm">
         <div className="mb-6">
-          <h2 className="text-xl font-semibold">Welcome back</h2>
+          <h2 className="text-xl font-semibold">Create your account</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Sign in to your account to continue
+            Internal team access only
           </p>
         </div>
 
-        <LoginForm />
+        <SignupForm />
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          New team member?{" "}
+          Already have an account?{" "}
           <Link
-            href="/signup"
+            href="/login"
             className="font-medium text-foreground hover:underline underline-offset-4"
           >
-            Create an account
+            Sign in
           </Link>
+        </p>
+      </div>
+
+      {/* Internal-only notice */}
+      <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+        <p className="text-xs text-muted-foreground">
+          This signup is restricted to CivilEzy team members. Admin access must
+          be granted by IT after account creation.
         </p>
       </div>
 

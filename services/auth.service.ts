@@ -17,11 +17,12 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
 
   if (!user) return null;
 
+  // maybeSingle() returns null instead of throwing when no row exists
   const { data } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
   return data as UserProfile | null;
 }

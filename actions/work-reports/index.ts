@@ -42,7 +42,7 @@ export async function addWorkReportAction(
     .from("profiles")
     .select("employee_category")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
   const category = profile?.employee_category;
   if (!category) {

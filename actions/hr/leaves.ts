@@ -15,7 +15,7 @@ async function assertHrRole() {
     .from("profiles")
     .select("role")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
   if (!profile || !["hr_finance", "admin"].includes(profile.role)) {
     return { supabase: null, user: null, error: "Access denied" };

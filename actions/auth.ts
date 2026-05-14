@@ -3,15 +3,51 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
 import { createServerClient } from "@supabase/ssr";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { getRoleDashboardPath } from "@/lib/utils";
-import type { ActionResult, Role } from "@/types";
+import type { ActionResult, Role, EmployeeCategory } from "@/types";
+
+// ── Validation schemas ────────────────────────────────────────────────────────
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
+
+const ALLOWED_SIGNUP_ROLES = ["employee", "cre", "hr_finance"] as const;
+type SignupRole = (typeof ALLOWED_SIGNUP_ROLES)[number];
+
+const signupSchema = z.object({
+  full_name: z.string().min(2, "Full name must be at least 2 characters").max(80),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  role: z.enum(ALLOWED_SIGNUP_ROLES, {
+    errorMap: () => ({ message: "Invalid role selected" }),
+  }),
+  employee_category: z.string().nullable().optional(),
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Creates an authenticated Supabase client using a Bearer token from a fresh
+ * sign-in session. Required because new session tokens land in *response*
+ * cookies and the SSR server client reads *request* cookies — so the freshly
+ * signed-in user's JWT isn't yet visible to a regular server client.
+ */
+function createAuthedClient(accessToken: string) {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: { getAll: () => [], setAll: () => {} },
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
+    }
+  );
+}
+
+// ── Login ─────────────────────────────────────────────────────────────────────
 
 export async function loginAction(
   _prevState: ActionResult,
@@ -48,47 +84,44 @@ export async function loginAction(
     return { success: false, error: "Authentication failed. Please try again." };
   }
 
-  // Use the access_token from signInWithPassword as the Authorization header.
-  // This sidesteps the cookie-timing problem (new session tokens land in
-  // *response* cookies; the SSR client's getAll() reads *request* cookies).
-  const authedClient = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: { getAll: () => [], setAll: () => {} },
-      global: { headers: { Authorization: `Bearer ${session.access_token}` } },
-    }
-  );
+  // Fetch the profile using the fresh access token (bypasses the cookie
+  // timing gap where the new session isn't yet visible in request cookies).
+  const authedClient = createAuthedClient(session.access_token);
 
-  // maybeSingle() returns null instead of throwing when no row is found.
   let { data: profile } = await authedClient
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .maybeSingle();
 
-  // Auto-create profile if the database trigger didn't fire (e.g. fresh project
-  // without migrations applied, or a race condition during first sign-up).
+  // Auto-repair: if profile row is missing, create it now via the admin client
+  // so it bypasses any RLS policy that might block a self-insert.
   if (!profile) {
-    const { data: created } = await authedClient
-      .from("profiles")
-      .insert({
-        id: user.id,
-        email: user.email ?? "",
-        full_name: (user.user_metadata?.full_name as string | undefined) ?? "",
-        role: "employee",
-      })
-      .select("role")
-      .maybeSingle();
-
-    profile = created;
+    try {
+      const adminClient = createAdminClient();
+      const { data: created } = await adminClient
+        .from("profiles")
+        .insert({
+          id: user.id,
+          email: user.email ?? "",
+          full_name:
+            (user.user_metadata?.full_name as string | undefined) ?? "",
+          role: "employee" as Role,
+          employee_category: null,
+        })
+        .select("role")
+        .maybeSingle();
+      profile = created;
+    } catch {
+      // Service role key not configured — fall through to the error below
+    }
   }
 
   if (!profile) {
     return {
       success: false,
       error:
-        "Account profile not found. Please ask your administrator to create your profile in the system.",
+        "Profile not found. Please ask your administrator to set up your account profile.",
     };
   }
 
@@ -96,6 +129,107 @@ export async function loginAction(
   revalidatePath("/", "layout");
   redirect(getRoleDashboardPath(role));
 }
+
+// ── Signup ────────────────────────────────────────────────────────────────────
+
+export async function signupAction(
+  _prevState: ActionResult,
+  formData: FormData
+): Promise<ActionResult> {
+  const raw = {
+    full_name: (formData.get("full_name") as string)?.trim(),
+    email: formData.get("email") as string,
+    password: formData.get("password") as string,
+    role: formData.get("role") as string,
+    employee_category: (formData.get("employee_category") as string) || null,
+  };
+
+  const parsed = signupSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid input",
+    };
+  }
+
+  const { full_name, email, password, role, employee_category } = parsed.data;
+
+  const supabase = await createClient();
+
+  // Create the auth user
+  const {
+    data: { user },
+    error: signUpError,
+  } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { full_name },
+    },
+  });
+
+  if (signUpError) {
+    return { success: false, error: signUpError.message };
+  }
+
+  if (!user) {
+    return {
+      success: false,
+      error: "Account creation failed. Please try again.",
+    };
+  }
+
+  // Create the profile row using the admin client to reliably bypass RLS.
+  // This ensures "Profile not found" never happens after a successful signup.
+  try {
+    const adminClient = createAdminClient();
+    // Upsert rather than insert because the handle_new_user trigger fires
+    // synchronously during auth.signUp() and creates a bare profile row.
+    // The upsert overwrites that row with the user-selected role and category.
+    const { error: profileError } = await adminClient
+      .from("profiles")
+      .upsert(
+        {
+          id: user.id,
+          email,
+          full_name,
+          role: role as SignupRole,
+          employee_category: (employee_category as EmployeeCategory) ?? null,
+        },
+        { onConflict: "id" }
+      );
+
+    if (profileError) {
+      // Profile insert failed — the auth user was created but the profile
+      // wasn't. Delete the dangling auth user to keep state consistent, then
+      // return an actionable error.
+      await adminClient.auth.admin.deleteUser(user.id);
+      return {
+        success: false,
+        error: "Failed to create account profile. Please contact your administrator.",
+      };
+    }
+  } catch {
+    // Service role key not configured — the Supabase trigger on auth.users
+    // should handle profile creation in this case. Fall through.
+  }
+
+  // Sign the new user in immediately so they land on their dashboard.
+  const {
+    data: { session },
+    error: signInError,
+  } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (signInError || !session) {
+    // Account created but auto-login failed — send them to login page.
+    redirect("/login");
+  }
+
+  revalidatePath("/", "layout");
+  redirect(getRoleDashboardPath(role as Role));
+}
+
+// ── Logout ────────────────────────────────────────────────────────────────────
 
 export async function logoutAction(): Promise<void> {
   const supabase = await createClient();
