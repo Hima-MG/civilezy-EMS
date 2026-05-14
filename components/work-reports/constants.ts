@@ -1,9 +1,13 @@
 import type { EmployeeCategory } from "@/types";
 
 export const CATEGORY_LABELS: Record<EmployeeCategory, string> = {
-  content_creator: "Content Creator",
-  tech_lead: "Tech Lead",
+  content_creator:  "Content Creator",
+  content_manager:  "Content Manager",
+  tech_lead:        "Tech Lead",
   digital_marketer: "Digital Marketer",
+  management:       "Management",
+  finance:          "Finance",
+  sales:            "Sales",
 };
 
 export const SUBCATEGORIES: Record<EmployeeCategory, string[]> = {
@@ -12,6 +16,13 @@ export const SUBCATEGORIES: Record<EmployeeCategory, string[]> = {
     "Civilezy Civil War",
     "File Uploading",
     "Content Editing",
+    "Others",
+  ],
+  content_manager: [
+    "Content Planning",
+    "Content Review",
+    "Team Coordination",
+    "Publishing",
     "Others",
   ],
   tech_lead: [
@@ -28,6 +39,27 @@ export const SUBCATEGORIES: Record<EmployeeCategory, string[]> = {
     "Campaign Planning",
     "Analytics",
     "Lead Campaigns",
+    "Others",
+  ],
+  management: [
+    "Team Meetings",
+    "Strategic Planning",
+    "Performance Reviews",
+    "Process Improvement",
+    "Others",
+  ],
+  finance: [
+    "Payroll Processing",
+    "Invoice Management",
+    "Financial Reporting",
+    "Expense Tracking",
+    "Others",
+  ],
+  sales: [
+    "Lead Follow-up",
+    "Client Meetings",
+    "Proposal Creation",
+    "CRM Updates",
     "Others",
   ],
 };

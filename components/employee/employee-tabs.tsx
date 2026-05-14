@@ -50,8 +50,12 @@ const LEAVE_TYPE: Record<LeaveType, string> = {
 
 const CATEGORY_LABEL: Record<EmployeeCategory, string> = {
   content_creator:  "Content Creator",
+  content_manager:  "Content Manager",
   tech_lead:        "Tech Lead",
   digital_marketer: "Digital Marketer",
+  management:       "Management",
+  finance:          "Finance",
+  sales:            "Sales",
 };
 
 // ── Meeting schedule ──────────────────────────────────────────
