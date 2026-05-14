@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Building2 } from "lucide-react";
 import { LoginForm } from "@/components/auth/login-form";
 
@@ -31,16 +30,6 @@ export default function LoginPage() {
         </div>
 
         <LoginForm />
-
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          New team member?{" "}
-          <Link
-            href="/signup"
-            className="font-medium text-foreground hover:underline underline-offset-4"
-          >
-            Create an account
-          </Link>
-        </p>
       </div>
 
       <p className="text-center text-xs text-muted-foreground mt-6">

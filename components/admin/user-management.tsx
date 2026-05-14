@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/ds";
 import { EmptyState } from "@/components/ds";
 import { cn } from "@/lib/utils";
 import { updateUserRoleAction } from "@/actions/admin/users";
+import { CreateEmployeeForm } from "./create-employee-form";
 import type { UserProfile, Role } from "@/types";
 import type { StatusVariant } from "@/components/ds";
 
@@ -74,9 +75,12 @@ export function UserManagement({ users, currentUserId }: UserManagementProps) {
             {ROLES.map((r) => <SelectItem key={r} value={r}>{ROLE_CONFIG[r].label}</SelectItem>)}
           </SelectContent>
         </Select>
-        <p className="self-center text-xs text-muted-foreground sm:ml-auto shrink-0">
-          {filtered.length} of {users.length} users
-        </p>
+        <div className="flex items-center gap-3 sm:ml-auto shrink-0">
+          <p className="text-xs text-muted-foreground">
+            {filtered.length} of {users.length} users
+          </p>
+          <CreateEmployeeForm />
+        </div>
       </div>
 
       {/* Table */}

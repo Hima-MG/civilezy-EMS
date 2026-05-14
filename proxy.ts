@@ -2,14 +2,13 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 const DASHBOARD_PREFIXES = ["/admin", "/hr", "/cre", "/employee"];
-const AUTH_PATHS = ["/login", "/signup"];
+const AUTH_PATHS = ["/login"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Let auth pages and Supabase auth callback pass through without any
-  // session check — avoids interfering with the login/signup POST and the
-  // email-confirmation redirect.
+  // Let auth callbacks pass through without session check — avoids
+  // interfering with Supabase email-confirmation redirects.
   if (pathname.startsWith("/auth/")) {
     return NextResponse.next({ request });
   }
