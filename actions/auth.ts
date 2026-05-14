@@ -13,24 +13,6 @@ const loginSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
-// ---------------------------------------------------------------------------
-// Service-role client — bypasses RLS, server-only, never reaches the browser.
-// We need this in loginAction because signInWithPassword writes session tokens
-// to the *response* cookies, but getAll() reads from the *request* cookies.
-// That means the anon client has auth.uid() = null for the rest of the action,
-// and any RLS-gated query returns zero rows (PGRST116 → "profile not found").
-// ---------------------------------------------------------------------------
-function createAdminClient() {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      cookies: { getAll: () => [], setAll: () => {} },
-      auth: { autoRefreshToken: false, persistSession: false },
-    }
-  );
-}
-
 export async function loginAction(
   _prevState: ActionResult,
   formData: FormData
@@ -50,10 +32,8 @@ export async function loginAction(
 
   const supabase = await createClient();
 
-  // signInWithPassword validates credentials with the Supabase auth server and
-  // returns the verified user object directly — no second getUser() round-trip needed.
   const {
-    data: { user },
+    data: { user, session },
     error: signInError,
   } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
@@ -64,16 +44,24 @@ export async function loginAction(
     return { success: false, error: signInError.message };
   }
 
-  if (!user) {
+  if (!user || !session) {
     return { success: false, error: "Authentication failed. Please try again." };
   }
 
-  // Service-role client bypasses RLS for the profile lookup.
-  // The anon client cannot read the profile after sign-in because the session
-  // token lands in the *response* cookies while getAll() reads *request* cookies.
-  const admin = createAdminClient();
+  // Use the access_token from the just-completed sign-in as the Authorization
+  // header. This avoids the cookie-timing problem (new session tokens land in
+  // *response* cookies; the SSR client's getAll() reads *request* cookies)
+  // without requiring a service-role key.
+  const authedClient = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: { getAll: () => [], setAll: () => {} },
+      global: { headers: { Authorization: `Bearer ${session.access_token}` } },
+    }
+  );
 
-  const { data: profile, error: profileError } = await admin
+  const { data: profile, error: profileError } = await authedClient
     .from("profiles")
     .select("role")
     .eq("id", user.id)
