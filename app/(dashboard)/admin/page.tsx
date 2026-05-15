@@ -90,7 +90,7 @@ export default async function AdminDashboard() {
   ] = await Promise.all([
     supabase
       .from("profiles")
-      .select("*")
+      .select("id, email, full_name, role, is_active, employee_category, phone, department, created_at")
       .order("created_at", { ascending: false }),
 
     // Only columns used by analytics — skips punch_out, total_hours

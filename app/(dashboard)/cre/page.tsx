@@ -72,10 +72,18 @@ export default async function CREDashboard() {
   const conversionRate =
     totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0;
 
-  // ── Status distribution for chart ─────────────────────────
+  // ── Status distribution for chart — single pass O(n) ──────
+  const statusCounts: Record<string, number> = {};
+  const monthCounts: Record<string, number> = {};
+  for (const lead of leads) {
+    statusCounts[lead.status] = (statusCounts[lead.status] ?? 0) + 1;
+    const m = lead.created_at.slice(0, 7);
+    monthCounts[m] = (monthCounts[m] ?? 0) + 1;
+  }
+
   const statusData = ALL_STATUSES.map((status) => ({
     status: LEAD_STATUS_LABELS[status],
-    count: leads.filter((l) => l.status === status).length,
+    count: statusCounts[status] ?? 0,
   }));
 
   // ── Monthly lead creation (last 6 months) ─────────────────
@@ -84,10 +92,7 @@ export default async function CREDashboard() {
     const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
     const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     const label = d.toLocaleString("en-IN", { month: "short", year: "2-digit" });
-    return {
-      month: label,
-      count: leads.filter((l) => l.created_at.startsWith(yearMonth)).length,
-    };
+    return { month: label, count: monthCounts[yearMonth] ?? 0 };
   });
 
   return (
