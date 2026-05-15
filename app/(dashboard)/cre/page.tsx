@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthContext } from "@/services/auth.service";
+import { getRoleDashboardPath } from "@/lib/utils";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { CreTabs } from "@/components/cre/cre-tabs";
-import type { UserProfile, Role, Lead, LeadNote, LeadStatus } from "@/types";
+import type { Lead, LeadNote, LeadStatus } from "@/types";
 
 export const metadata: Metadata = { title: "CRE Dashboard" };
+export const dynamic = "force-dynamic";
 
 const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
   new: "New",
@@ -25,35 +27,22 @@ const ALL_STATUSES: LeadStatus[] = [
   "lost",
 ];
 
-export default async function CREDashboard({
-  searchParams,
-}: {
-  searchParams: Promise<{ tab?: string }>;
-}) {
-  const { tab } = await searchParams;
-  const supabase = await createClient();
+export default async function CREDashboard() {
+  const { supabase, user, profile: userProfile, role } = await getAuthContext();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  if (!user || !userProfile || !role || userProfile.is_active === false) {
+    redirect("/login");
+  }
 
-  if (!user) redirect("/login");
+  if (role !== "cre" && role !== "admin") redirect(getRoleDashboardPath(role));
 
-  const [profileResult, leadsResult] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
-    supabase
+  const leadsResult =
+    await supabase
       .from("leads")
       .select("*")
       .or(`created_by.eq.${user.id},assigned_to.eq.${user.id}`)
-      .order("created_at", { ascending: false }),
-  ]);
+      .order("created_at", { ascending: false });
 
-  if (!profileResult.data) redirect("/login");
-
-  const userProfile = profileResult.data as UserProfile;
-  const role = userProfile.role as Role;
-
-  if (role !== "cre" && role !== "admin") redirect("/employee");
   const leads = (leadsResult.data ?? []) as Lead[];
   const leadIds = leads.map((l) => l.id);
 
@@ -101,10 +90,6 @@ export default async function CREDashboard({
     };
   });
 
-  const VALID_TABS = ["overview", "leads", "followups", "notes", "analytics", "profile"] as const;
-  type ValidTab = typeof VALID_TABS[number];
-  const defaultTab: ValidTab = VALID_TABS.includes(tab as ValidTab) ? (tab as ValidTab) : "overview";
-
   return (
     <DashboardLayout
       profile={userProfile}
@@ -119,7 +104,6 @@ export default async function CREDashboard({
         analytics={{ totalLeads, convertedLeads, pendingFollowups, conversionRate }}
         statusData={statusData}
         monthlyData={monthlyData}
-        defaultTab={defaultTab}
         profile={userProfile}
       />
     </DashboardLayout>

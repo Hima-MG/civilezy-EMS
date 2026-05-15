@@ -1,34 +1,27 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthContext } from "@/services/auth.service";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { WorkReportsView } from "@/components/work-reports/work-reports-view";
-import type { EmployeeCategory, Role, UserProfile, WorkReport } from "@/types";
+import type { EmployeeCategory, WorkReport } from "@/types";
 
 export const metadata: Metadata = { title: "Work Reports" };
+export const dynamic = "force-dynamic";
 
 export default async function EmployeeWorkReportsPage() {
-  const supabase = await createClient();
+  const { supabase, user, profile: userProfile, role } = await getAuthContext();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  if (!user || !userProfile || !role || userProfile.is_active === false) {
+    redirect("/login");
+  }
 
-  if (!user) redirect("/login");
-
-  const [profileResult, reportsResult] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+  const reportsResult = await
     supabase
       .from("work_reports")
       .select("*")
       .eq("user_id", user.id)
       .order("report_date", { ascending: false })
-      .order("created_at", { ascending: false }),
-  ]);
-
-  if (!profileResult.data) redirect("/login");
-  const userProfile = profileResult.data as UserProfile;
-  const role = userProfile.role as Role;
+      .order("created_at", { ascending: false });
 
   const reports = (reportsResult.data ?? []) as WorkReport[];
 

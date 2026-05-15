@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState, useTransition } from "react";
+import type { MouseEvent } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_CONFIG } from "@/lib/nav-config";
+import { pushUrlTab } from "@/hooks/use-url-tab";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -73,19 +75,34 @@ function NavItem({
   collapsed,
   onNavClick,
   layoutScope,
+  pathname,
 }: {
   item: NavItem;
   isActive: boolean;
   collapsed: boolean;
   onNavClick?: () => void;
   layoutScope: string;
+  pathname: string;
 }) {
   const Icon = ICON_MAP[item.icon] ?? LayoutDashboard;
+  const [itemPath, itemQuery] = item.href.split("?");
+  const tab = itemQuery ? new URLSearchParams(itemQuery).get("tab") : null;
+
+  function handleClick(event: MouseEvent<HTMLAnchorElement>) {
+    if (itemPath === pathname && (tab || item.href === pathname)) {
+      event.preventDefault();
+      pushUrlTab(tab ?? "overview");
+      onNavClick?.();
+      return;
+    }
+
+    onNavClick?.();
+  }
 
   const linkContent = (
     <Link
       href={item.href}
-      onClick={onNavClick}
+      onClick={handleClick}
       className={cn(
         "relative flex items-center rounded-lg text-sm font-medium transition-all duration-150 group",
         collapsed ? "h-9 w-9 justify-center mx-auto" : "gap-2.5 px-3 py-2",
@@ -168,6 +185,7 @@ function SidebarNav({
           collapsed={collapsed}
           onNavClick={onNavClick}
           layoutScope={layoutScope}
+          pathname={pathname}
         />
       ))}
     </nav>
@@ -222,8 +240,8 @@ function SidebarContent({
 
   function handleLogout() {
     startLogout(async () => {
-      await logoutAction();
-      router.push("/login");
+      const result = await logoutAction();
+      router.replace(result.success ? result.redirectTo ?? "/login" : "/login");
     });
   }
 

@@ -6,7 +6,7 @@ import { useFormStatus } from "react-dom";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import {
-  UserPlus, Loader2, Eye, EyeOff, ChevronDown, X,
+  UserPlus, Loader2, Eye, EyeOff, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,8 +72,9 @@ export function CreateEmployeeForm() {
     }
     if (state.success === true) {
       if (state.message) toast.success(state.message);
-      setOpen(false);
+      const closeTimer = window.setTimeout(() => setOpen(false), 0);
       startTransition(() => router.refresh());
+      return () => window.clearTimeout(closeTimer);
     }
   }, [state, router, startTransition]);
 

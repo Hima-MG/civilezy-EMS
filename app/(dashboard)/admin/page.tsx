@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthContext } from "@/services/auth.service";
+import { getRoleDashboardPath } from "@/lib/utils";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { AdminTabs } from "@/components/admin/admin-tabs";
 import type {
   UserProfile,
-  Role,
   AttendanceRecord,
   LeaveRequest,
   SalaryRecord,
@@ -19,6 +19,7 @@ import type {
 } from "@/types";
 
 export const metadata: Metadata = { title: "Admin Dashboard" };
+export const dynamic = "force-dynamic";
 
 const ROLE_COLORS: Record<string, string> = {
   employee: "#3b82f6",
@@ -59,19 +60,14 @@ function fmtDate(dateStr: string) {
   });
 }
 
-export default async function AdminDashboard({
-  searchParams,
-}: {
-  searchParams: Promise<{ tab?: string }>;
-}) {
-  const { tab } = await searchParams;
-  const supabase = await createClient();
+export default async function AdminDashboard() {
+  const { supabase, user, profile: userProfile, role } = await getAuthContext();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  if (!user || !userProfile || !role || userProfile.is_active === false) {
+    redirect("/login");
+  }
 
-  if (!user) redirect("/login");
+  if (role !== "admin") redirect(getRoleDashboardPath(role));
 
   // ── Date helpers (before Promise.all — used in query filters) ─
   const now = new Date();
@@ -85,20 +81,13 @@ export default async function AdminDashboard({
   })();
   const sixMonthsAgoKey = sixMonthsAgoStart.slice(0, 7);
 
-  // ── All queries in one parallel batch (profile + data) ───────
-  // Profile and all data queries run together — saves one sequential RTT vs.
-  // the old pattern of fetching the profile first, then starting the data.
   const [
-    profileResult,
     profilesResult,
     attendanceResult,
     leavesResult,
     salaryResult,
     leadsResult,
   ] = await Promise.all([
-    // Current user's profile (for role check)
-    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
-
     supabase
       .from("profiles")
       .select("*")
@@ -131,12 +120,6 @@ export default async function AdminDashboard({
       .select("id, name, course_interest, source, status, created_by, created_at")
       .order("created_at", { ascending: false }),
   ]);
-
-  if (!profileResult.data) redirect("/login");
-  const userProfile = profileResult.data as UserProfile;
-  const role = userProfile.role as Role;
-
-  if (role !== "admin") redirect("/employee");
 
   const allProfiles = (profilesResult.data ?? []) as UserProfile[];
   const rawAttendance = (attendanceResult.data ?? []) as AttendanceRecord[];
@@ -298,14 +281,6 @@ export default async function AdminDashboard({
     .sort((a, b) => b.converted - a.converted)
     .slice(0, 5);
 
-  const VALID_TABS = [
-    "overview", "employees", "finance", "crm", "hr", "analytics", "students", "renewals", "settings",
-  ] as const;
-  type ValidTab = typeof VALID_TABS[number];
-  const defaultTab: ValidTab = VALID_TABS.includes(tab as ValidTab)
-    ? (tab as ValidTab)
-    : "overview";
-
   return (
     <DashboardLayout
       profile={userProfile}
@@ -328,7 +303,6 @@ export default async function AdminDashboard({
         leavesEnriched={leavesEnriched}
         salaryEnriched={salaryEnriched}
         topCre={topCre}
-        defaultTab={defaultTab}
       />
     </DashboardLayout>
   );

@@ -1,32 +1,23 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthContext } from "@/services/auth.service";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { EmployeeTabs } from "@/components/employee/employee-tabs";
 import type {
-  UserProfile,
-  Role,
   AttendanceRecord,
   LeaveRequest,
   DailyTask,
 } from "@/types";
 
 export const metadata: Metadata = { title: "Employee Dashboard" };
+export const dynamic = "force-dynamic";
 
-export default async function EmployeeDashboard({
-  searchParams,
-}: {
-  searchParams: Promise<{ tab?: string }>;
-}) {
-  const { tab } = await searchParams;
+export default async function EmployeeDashboard() {
+  const { supabase, user, profile: userProfile, role } = await getAuthContext();
 
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
+  if (!user || !userProfile || !role || userProfile.is_active === false) {
+    redirect("/login");
+  }
 
   // ── Date helpers ──────────────────────────────────────────
   const now = new Date();
@@ -38,7 +29,6 @@ export default async function EmployeeDashboard({
 
   // ── All queries in one parallel batch (profile + data) ───
   const [
-    profileResult,
     todayAttRes,
     presentDaysRes,
     totalLeavesRes,
@@ -47,8 +37,6 @@ export default async function EmployeeDashboard({
     leaveHistRes,
     tasksRes,
   ] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
-
     supabase
       .from("attendance")
       .select("*")
@@ -97,10 +85,6 @@ export default async function EmployeeDashboard({
       .order("created_at", { ascending: false }),
   ]);
 
-  if (!profileResult.data) redirect("/login");
-  const userProfile = profileResult.data as UserProfile;
-  const role = userProfile.role as Role;
-
   // ── Derive summary stats ──────────────────────────────────
   const todayRecord = (todayAttRes.data ?? null) as AttendanceRecord | null;
 
@@ -119,11 +103,6 @@ export default async function EmployeeDashboard({
   const leaveHistory = (leaveHistRes.data ?? []) as LeaveRequest[];
   const tasks = (tasksRes.data ?? []) as DailyTask[];
 
-  // Validate tab value against known tabs
-  const VALID_TABS = ["overview", "attendance", "leaves", "tasks", "work-reports", "meetings", "profile"] as const;
-  type ValidTab = typeof VALID_TABS[number];
-  const defaultTab: ValidTab = VALID_TABS.includes(tab as ValidTab) ? (tab as ValidTab) : "overview";
-
   return (
     <DashboardLayout
       profile={userProfile}
@@ -137,7 +116,6 @@ export default async function EmployeeDashboard({
         leaveHistory={leaveHistory}
         tasks={tasks}
         stats={{ presentDays, totalLeaves, todayHours, pendingTasks }}
-        defaultTab={defaultTab}
         profile={userProfile}
       />
     </DashboardLayout>

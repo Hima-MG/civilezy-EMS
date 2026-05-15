@@ -16,6 +16,7 @@ import { SalaryManager } from "./salary-manager";
 import { PayrollChart } from "./payroll-chart";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { useUrlTab } from "@/hooks/use-url-tab";
 import type {
   UserProfile,
   AttendanceWithProfile,
@@ -39,6 +40,8 @@ function daysBetween(from: string, to: string) {
   return Math.max(1, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000) + 1);
 }
 
+const VALID_TABS = ["overview", "attendance", "leaves", "payroll", "employees", "payments"] as const;
+
 // ── Payment method breakdown from salary data ───────────────────────
 // Since payment_method isn't tracked in the DB, we derive buckets from
 // the salary records count for a premium payment ops panel.
@@ -51,7 +54,6 @@ interface HrTabsProps {
   salaryRecords: SalaryWithProfile[];
   analytics: HrAnalytics;
   monthlyPayrollData: MonthlyPayrollPoint[];
-  defaultTab?: string;
 }
 
 export function HrTabs({
@@ -61,8 +63,8 @@ export function HrTabs({
   salaryRecords,
   analytics,
   monthlyPayrollData,
-  defaultTab = "overview",
 }: HrTabsProps) {
+  const [activeTab, setActiveTab] = useUrlTab(VALID_TABS, "overview");
   const pendingLeaves   = leaves.filter((l) => l.status === "pending").slice(0, 6);
   const pendingSalaries = salaryRecords.filter((s) => s.status === "pending");
   const paidSalaries    = salaryRecords.filter((s) => s.status === "paid");
@@ -116,7 +118,7 @@ export function HrTabs({
   ];
 
   return (
-    <Tabs defaultValue={defaultTab} className="space-y-5">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">
 
       {/* ── Tab bar ──────────────────────────────────────────────── */}
       <TabsList className="h-9 bg-muted/50 border border-border/60 p-0.5 rounded-xl gap-0.5 w-full sm:w-auto flex-wrap">

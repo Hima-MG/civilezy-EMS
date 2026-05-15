@@ -1,47 +1,35 @@
 import { createClient } from "@/lib/supabase/server";
 import type { UserProfile, Role } from "@/types";
 
-export async function getCurrentUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
+export interface AuthContext {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  user: Awaited<ReturnType<Awaited<ReturnType<typeof createClient>>["auth"]["getUser"]>>["data"]["user"] | null;
+  profile: UserProfile | null;
+  role: Role | null;
 }
 
-export async function getCurrentProfile(): Promise<UserProfile | null> {
+export async function getAuthContext(): Promise<AuthContext> {
   const supabase = await createClient();
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
 
-  if (!user) return null;
+  if (error || !user) {
+    return { supabase, user: null, profile: null, role: null };
+  }
 
-  // maybeSingle() returns null instead of throwing when no row exists
-  const { data } = await supabase
+  const { data: profile } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .maybeSingle();
 
-  return data as UserProfile | null;
-}
-
-export async function getUserRole(): Promise<Role> {
-  const profile = await getCurrentProfile();
-  return (profile?.role ?? "employee") as Role;
-}
-
-export async function requireAuth() {
-  const user = await getCurrentUser();
-  if (!user) throw new Error("Unauthorized");
-  return user;
-}
-
-export async function requireRole(allowedRoles: Role[]) {
-  const role = await getUserRole();
-  if (!allowedRoles.includes(role)) {
-    throw new Error("Forbidden");
-  }
-  return role;
+  const typedProfile = (profile ?? null) as UserProfile | null;
+  return {
+    supabase,
+    user,
+    profile: typedProfile,
+    role: (typedProfile?.role ?? null) as Role | null,
+  };
 }

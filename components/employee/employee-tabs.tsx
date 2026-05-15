@@ -10,6 +10,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useUrlTab } from "@/hooks/use-url-tab";
 import {
   KpiCard, HeroCard, DataTable, StatusBadge, EmptyState,
 } from "@/components/ds";
@@ -93,6 +94,8 @@ const MEETING_COLORS: Record<MeetingAccent, { card: string; icon: string; badge:
   success: { card: "bg-emerald-500/8 border-emerald-500/20", icon: "text-emerald-400", badge: "bg-emerald-500/12 text-emerald-400 border-emerald-500/20" },
 };
 
+const VALID_TABS = ["overview", "attendance", "leaves", "tasks", "meetings", "profile"] as const;
+
 function getNextOccurrence(dayOfWeek: number): Date {
   const result = new Date();
   result.setHours(0, 0, 0, 0);
@@ -152,7 +155,6 @@ interface EmployeeTabsProps {
     todayHours: string;
     pendingTasks: number;
   };
-  defaultTab?: string;
   profile: UserProfile;
 }
 
@@ -164,9 +166,9 @@ export function EmployeeTabs({
   leaveHistory,
   tasks,
   stats,
-  defaultTab = "overview",
   profile,
 }: EmployeeTabsProps) {
+  const [activeTab, setActiveTab] = useUrlTab(VALID_TABS, "overview");
   const firstName = profile.full_name?.split(" ")[0] ?? "there";
   const todayStr  = new Date().toLocaleDateString("en-IN", {
     weekday: "long", day: "numeric", month: "long",
@@ -223,7 +225,7 @@ export function EmployeeTabs({
   // ── Render ──────────────────────────────────────────────────
 
   return (
-    <Tabs defaultValue={defaultTab} className="space-y-5">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">
 
       {/* Tab bar */}
       <TabsList className="h-9 bg-muted/50 border border-border/60 p-0.5 rounded-xl flex flex-wrap gap-0.5">

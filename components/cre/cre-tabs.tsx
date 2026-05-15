@@ -16,6 +16,7 @@ import { LeadNotesDialog } from "./lead-notes-dialog";
 import { StatusChart } from "./status-chart";
 import { MonthlyChart } from "./monthly-chart";
 import { cn } from "@/lib/utils";
+import { useUrlTab } from "@/hooks/use-url-tab";
 import type { Lead, LeadNote, LeadStatus, UserProfile, EmployeeCategory } from "@/types";
 
 // ── Constants ─────────────────────────────────────────────────
@@ -23,6 +24,8 @@ import type { Lead, LeadNote, LeadStatus, UserProfile, EmployeeCategory } from "
 const PIPELINE_STAGES: LeadStatus[] = [
   "new", "contacted", "interested", "follow_up", "converted", "lost",
 ];
+
+const VALID_TABS = ["overview", "leads", "followups", "notes", "analytics", "profile"] as const;
 
 const CATEGORY_LABEL: Record<EmployeeCategory, string> = {
   content_creator:  "Content Creator",
@@ -177,7 +180,6 @@ interface CreTabsProps {
   analytics: Analytics;
   statusData: StatusDataPoint[];
   monthlyData: MonthlyDataPoint[];
-  defaultTab?: string;
   profile: UserProfile;
 }
 
@@ -190,9 +192,9 @@ export function CreTabs({
   analytics,
   statusData,
   monthlyData,
-  defaultTab = "overview",
   profile,
 }: CreTabsProps) {
+  const [activeTab, setActiveTab] = useUrlTab(VALID_TABS, "overview");
   const followupLeads = leads.filter((l) => l.status === "follow_up");
 
   // Lead lookup map for notes timeline
@@ -214,7 +216,7 @@ export function CreTabs({
   const firstName = profile.full_name?.split(" ")[0] ?? "there";
 
   return (
-    <Tabs defaultValue={defaultTab} className="space-y-5">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">
 
       {/* Tab bar */}
       <TabsList className="h-9 bg-muted/50 border border-border/60 p-0.5 rounded-xl flex flex-wrap gap-0.5">

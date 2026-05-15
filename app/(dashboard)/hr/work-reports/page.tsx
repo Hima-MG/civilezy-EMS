@@ -1,23 +1,26 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthContext } from "@/services/auth.service";
+import { getRoleDashboardPath } from "@/lib/utils";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { AdminWorkReportsView } from "@/components/work-reports/admin-work-reports-view";
-import type { Role, UserProfile, WorkReport, WorkReportWithProfile } from "@/types";
+import type { UserProfile, WorkReport, WorkReportWithProfile } from "@/types";
 
 export const metadata: Metadata = { title: "Work Reports – HR" };
+export const dynamic = "force-dynamic";
 
 export default async function HrWorkReportsPage() {
-  const supabase = await createClient();
+  const { supabase, user, profile: userProfile, role } = await getAuthContext();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  if (!user || !userProfile || !role || userProfile.is_active === false) {
+    redirect("/login");
+  }
 
-  if (!user) redirect("/login");
+  if (role !== "hr_finance" && role !== "admin") {
+    redirect(getRoleDashboardPath(role));
+  }
 
-  const [profileResult, reportsResult, profilesResult] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+  const [reportsResult, profilesResult] = await Promise.all([
     supabase
       .from("work_reports")
       .select("*")
@@ -29,12 +32,6 @@ export default async function HrWorkReportsPage() {
       .eq("is_active", true)
       .order("full_name"),
   ]);
-
-  if (!profileResult.data) redirect("/login");
-  const userProfile = profileResult.data as UserProfile;
-  const role = userProfile.role as Role;
-
-  if (role !== "hr_finance" && role !== "admin") redirect("/employee");
 
   const rawReports = (reportsResult.data ?? []) as WorkReport[];
   const allProfiles = (profilesResult.data ?? []) as Pick<

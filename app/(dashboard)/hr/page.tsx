@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthContext } from "@/services/auth.service";
+import { getRoleDashboardPath } from "@/lib/utils";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { HrTabs } from "@/components/hr/hr-tabs";
 import type {
   UserProfile,
-  Role,
   AttendanceRecord,
   LeaveRequest,
   SalaryRecord,
@@ -17,20 +17,18 @@ import type {
 } from "@/types";
 
 export const metadata: Metadata = { title: "HR & Finance Dashboard" };
+export const dynamic = "force-dynamic";
 
-export default async function HRDashboard({
-  searchParams,
-}: {
-  searchParams: Promise<{ tab?: string }>;
-}) {
-  const { tab } = await searchParams;
-  const supabase = await createClient();
+export default async function HRDashboard() {
+  const { supabase, user, profile: userProfile, role } = await getAuthContext();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  if (!user || !userProfile || !role || userProfile.is_active === false) {
+    redirect("/login");
+  }
 
-  if (!user) redirect("/login");
+  if (role !== "hr_finance" && role !== "admin") {
+    redirect(getRoleDashboardPath(role));
+  }
 
   // ── Date helpers (before Promise.all — used in query filters) ─
   const now = new Date();
@@ -47,11 +45,8 @@ export default async function HRDashboard({
   // ── All queries in one parallel batch (profile + data) ───────
   // Profile and all data queries run together — saves one sequential RTT vs.
   // the old pattern of fetching the profile first, then starting the data.
-  const [profileResult, profilesResult, attendanceResult, leavesResult, salaryResult] =
+  const [profilesResult, attendanceResult, leavesResult, salaryResult] =
     await Promise.all([
-      // Current user's profile (for role check)
-      supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
-
       // All active employee profiles (fixed HR RLS policy via get_my_role())
       supabase
         .from("profiles")
@@ -79,15 +74,6 @@ export default async function HRDashboard({
         .select("*")
         .order("month", { ascending: false }),
     ]);
-
-  if (!profileResult.data) redirect("/login");
-  const userProfile = profileResult.data as UserProfile;
-  const role = userProfile.role as Role;
-
-  // Only hr_finance and admin may access this page
-  if (role !== "hr_finance" && role !== "admin") {
-    redirect("/employee");
-  }
 
   const allProfiles = (profilesResult.data ?? []) as UserProfile[];
   const rawAttendance = (attendanceResult.data ?? []) as AttendanceRecord[];
@@ -153,10 +139,6 @@ export default async function HRDashboard({
     }
   );
 
-  const VALID_TABS = ["overview", "attendance", "leaves", "payroll", "employees", "payments"] as const;
-  type ValidTab = typeof VALID_TABS[number];
-  const defaultTab: ValidTab = VALID_TABS.includes(tab as ValidTab) ? (tab as ValidTab) : "overview";
-
   return (
     <DashboardLayout
       profile={userProfile}
@@ -171,7 +153,6 @@ export default async function HRDashboard({
         salaryRecords={salaryRecords}
         analytics={analytics}
         monthlyPayrollData={monthlyPayrollData}
-        defaultTab={defaultTab}
       />
     </DashboardLayout>
   );

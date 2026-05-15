@@ -60,13 +60,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Authenticated users hitting auth pages → redirect to their dashboard.
-  // Only applies to GET requests (page loads). POST requests are Server
-  // Actions — redirecting them causes "unexpected response" on the client
-  // because React can't handle a 3xx as a server action response.
+  // Authenticated users hitting auth pages go through the root resolver.
+  // Proxy validates the user, while the root page performs the role-aware
+  // profile lookup and dashboard redirect.
   if (request.method === "GET" && user && AUTH_PATHS.includes(pathname)) {
     const dashUrl = request.nextUrl.clone();
-    dashUrl.pathname = "/employee";
+    dashUrl.pathname = "/";
     return NextResponse.redirect(dashUrl);
   }
 

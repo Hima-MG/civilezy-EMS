@@ -16,6 +16,7 @@ import type { ActivityItem } from "@/components/ds";
 import type { StatusVariant } from "@/components/ds";
 import { UserManagement } from "./user-management";
 import { AnalyticsSection, PayrollTrendChart } from "./analytics-charts";
+import { useUrlTab } from "@/hooks/use-url-tab";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type {
@@ -90,6 +91,10 @@ const PIPELINE_STAGES = [
   { key: "converted",  label: "Converted",  color: "#22c55e" },
   { key: "lost",       label: "Lost",       color: "#ef4444" },
 ];
+
+const VALID_TABS = [
+  "overview", "employees", "finance", "crm", "hr", "analytics", "students", "renewals", "settings",
+] as const;
 
 // ── Local components ───────────────────────────────────────────────
 
@@ -182,7 +187,6 @@ interface AdminTabsProps {
   leavesEnriched: LeaveWithProfile[];
   salaryEnriched: SalaryWithProfile[];
   topCre: TopCreEntry[];
-  defaultTab?: string;
 }
 
 // ── Component ──────────────────────────────────────────────────────
@@ -202,8 +206,8 @@ export function AdminTabs({
   leavesEnriched,
   salaryEnriched,
   topCre,
-  defaultTab = "overview",
 }: AdminTabsProps) {
+  const [activeTab, setActiveTab] = useUrlTab(VALID_TABS, "overview");
 
   // ── Derived data ─────────────────────────────────────────────
 
@@ -235,7 +239,7 @@ export function AdminTabs({
     }));
 
   return (
-    <Tabs defaultValue={defaultTab} className="space-y-5">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">
 
       {/* ── Tab bar ──────────────────────────────────────────────── */}
       <div className="overflow-x-auto pb-0.5">
