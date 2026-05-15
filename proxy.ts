@@ -2,8 +2,6 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 const DASHBOARD_PREFIXES = ["/admin", "/hr", "/cre", "/employee"];
-const AUTH_PATHS = ["/login"];
-
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -58,15 +56,6 @@ export async function proxy(request: NextRequest) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     return NextResponse.redirect(loginUrl);
-  }
-
-  // Authenticated users hitting auth pages go through the root resolver.
-  // Proxy validates the user, while the root page performs the role-aware
-  // profile lookup and dashboard redirect.
-  if (request.method === "GET" && user && AUTH_PATHS.includes(pathname)) {
-    const dashUrl = request.nextUrl.clone();
-    dashUrl.pathname = "/";
-    return NextResponse.redirect(dashUrl);
   }
 
   return supabaseResponse;
