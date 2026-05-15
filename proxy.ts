@@ -3,16 +3,10 @@ import { type NextRequest, NextResponse } from "next/server";
 
 const DASHBOARD_PREFIXES = ["/admin", "/hr", "/cre", "/employee"];
 
-export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-
+export async function proxy(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  // Guard: missing env → pass through, page-level auth guards still protect routes
-  if (!supabaseUrl || !supabaseKey) {
-    return NextResponse.next({ request });
-  }
+  if (!supabaseUrl || !supabaseKey) return NextResponse.next({ request });
 
   let supabaseResponse = NextResponse.next({ request });
 
@@ -22,10 +16,8 @@ export async function middleware(request: NextRequest) {
         return request.cookies.getAll();
       },
       setAll(cookiesToSet) {
-        // Mirror refreshed tokens onto the request so downstream Server Components
-        // see the updated JWT, then write the new cookies onto the response.
-        cookiesToSet.forEach(({ name, value }) =>
-          request.cookies.set(name, value)
+        cookiesToSet.forEach(({ name, value, options }) =>
+          request.cookies.set(name, value, options)
         );
         supabaseResponse = NextResponse.next({ request });
         cookiesToSet.forEach(({ name, value, options }) =>
@@ -35,17 +27,16 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // getUser() validates the JWT with Supabase and triggers a token refresh when
-  // the access token is near expiry. This MUST stay here — without it, Server
-  // Components see stale/expired sessions and incorrectly redirect to /login.
+  // Refresh the session JWT (validates server-side, updates cookies if expiring).
+  // Must use getUser() not getSession() — getSession() is optimistic and can be spoofed.
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Unauthenticated users trying to access a dashboard → send to login
-  const isDashboardRoute = DASHBOARD_PREFIXES.some((p) =>
-    pathname.startsWith(p)
+  const isDashboardRoute = DASHBOARD_PREFIXES.some((prefix) =>
+    request.nextUrl.pathname.startsWith(prefix)
   );
+
   if (!user && isDashboardRoute) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";

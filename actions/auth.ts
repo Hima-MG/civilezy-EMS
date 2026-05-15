@@ -139,8 +139,6 @@ export async function loginAction(
   const redirectTo = getRoleDashboardPath(profile.role as Role);
   console.log("[login] success — role:", profile.role, "redirectTo:", redirectTo);
 
-  revalidatePath("/", "layout");
-
   // Return redirect path — client calls router.push().
   // Never use redirect() inside a server action used with useActionState:
   // it throws NEXT_REDIRECT which the action wire protocol cannot serialise.
