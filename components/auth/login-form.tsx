@@ -1,51 +1,80 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
-import { useFormStatus } from "react-dom";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Eye, EyeOff, Loader2, Mail, Lock } from "lucide-react";
-import { useState } from "react";
-import { loginAction } from "@/actions/auth";
+import { createClient } from "@/lib/supabase/client";
+import { getRoleDashboardPath } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { ActionResult } from "@/types";
-
-const initialState: ActionResult = { success: false, error: "" };
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" className="w-full" disabled={pending}>
-      {pending ? (
-        <>
-          <Loader2 className="animate-spin" />
-          Signing in…
-        </>
-      ) : (
-        "Sign in"
-      )}
-    </Button>
-  );
-}
+import type { Role } from "@/types";
 
 export function LoginForm() {
   const router = useRouter();
-  const [state, formAction] = useActionState(loginAction, initialState);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (state.success === false && state.error) {
-      toast.error(state.error);
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+
+    const supabase = createClient();
+
+    const {
+      data: { user },
+      error: signInError,
+    } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (signInError || !user) {
+      toast.error(signInError?.message ?? "Authentication failed.");
+      setLoading(false);
+      return;
     }
-    if (state.success === true && state.redirectTo) {
-      router.push(state.redirectTo);
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role, is_active")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      await supabase.auth.signOut();
+      toast.error(`Profile lookup failed: ${profileError.message}`);
+      setLoading(false);
+      return;
     }
-  }, [state, router]);
+
+    if (!profile) {
+      await supabase.auth.signOut();
+      toast.error("Account not found. Contact your administrator.");
+      setLoading(false);
+      return;
+    }
+
+    if (profile.is_active === false) {
+      await supabase.auth.signOut();
+      toast.error("Your account is inactive. Contact your administrator.");
+      setLoading(false);
+      return;
+    }
+
+    const validRoles: Role[] = ["admin", "hr_finance", "cre", "employee"];
+    if (!validRoles.includes(profile.role as Role)) {
+      await supabase.auth.signOut();
+      toast.error(`Unrecognised account role (${profile.role}). Contact your administrator.`);
+      setLoading(false);
+      return;
+    }
+
+    router.push(getRoleDashboardPath(profile.role as Role));
+  }
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="email">Email address</Label>
         <div className="relative">
@@ -58,6 +87,8 @@ export function LoginForm() {
             className="pl-9"
             autoComplete="email"
             required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
         </div>
       </div>
@@ -74,6 +105,8 @@ export function LoginForm() {
             className="pl-9 pr-9"
             autoComplete="current-password"
             required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
           />
           <button
             type="button"
@@ -99,7 +132,16 @@ export function LoginForm() {
         </a>
       </div>
 
-      <SubmitButton />
+      <Button type="submit" className="w-full" disabled={loading}>
+        {loading ? (
+          <>
+            <Loader2 className="animate-spin" />
+            Signing in…
+          </>
+        ) : (
+          "Sign in"
+        )}
+      </Button>
     </form>
   );
 }
