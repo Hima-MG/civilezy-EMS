@@ -2,8 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { getRoleDashboardPath } from "@/lib/utils";
 import type { ActionResult, Role } from "@/types";
 
@@ -13,24 +12,6 @@ const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/**
- * Bearer-token client — bypasses cookie-gap after signInWithPassword.
- * New session tokens land on the response cookies, but the SSR client reads
- * request cookies; the fresh JWT is invisible without this pattern.
- */
-function createAuthedClient(accessToken: string) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: { getAll: () => [], setAll: () => {} },
-      global: { headers: { Authorization: `Bearer ${accessToken}` } },
-    }
-  );
-}
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 
@@ -50,6 +31,7 @@ export async function loginAction(
 
   const supabase = await createClient();
 
+  // ── Step 1: sign in ───────────────────────────────────────────────────────
   const {
     data: { user, session },
     error: signInError,
@@ -59,22 +41,73 @@ export async function loginAction(
   });
 
   if (signInError) {
+    console.error("[login] signInWithPassword error:", signInError.message, signInError.status);
     return { success: false, error: signInError.message };
   }
 
   if (!user || !session) {
+    console.error("[login] signInWithPassword returned no user/session for email:", parsed.data.email);
     return { success: false, error: "Authentication failed. Please try again." };
   }
 
-  // Bearer-token client to read profile — bypasses cookie-gap after signIn.
-  const authedClient = createAuthedClient(session.access_token);
-  const { data: profile } = await authedClient
+  console.log("[login] auth ok — user.id:", user.id, "email:", user.email);
+
+  // ── Step 2: fetch profile via admin client ────────────────────────────────
+  //
+  // WHY admin client here:
+  //   After signInWithPassword, fresh tokens land on the *response* cookies.
+  //   The SSR client reads *request* cookies — so the new session is invisible
+  //   to it, and the bearer-token workaround depends on @supabase/ssr's
+  //   internal session handling not overriding the Authorization header.
+  //   Using the service-role admin client is the reliable alternative:
+  //   it bypasses RLS entirely (safe — this is a server action and the user
+  //   is already authenticated), and is not affected by cookie state at all.
+  //
+  let adminClient: ReturnType<typeof createAdminClient>;
+  try {
+    adminClient = createAdminClient();
+  } catch (e) {
+    console.error("[login] createAdminClient failed — SUPABASE_SERVICE_ROLE_KEY missing?", e);
+    return {
+      success: false,
+      error: "Server configuration error. Contact your administrator.",
+    };
+  }
+
+  const {
+    data: profile,
+    error: profileError,
+  } = await adminClient
     .from("profiles")
     .select("role, is_active")
     .eq("id", user.id)
     .maybeSingle();
 
+  // Surface the real error instead of masking it as "Account not found"
+  if (profileError) {
+    console.error("[login] profile query error:", {
+      message: profileError.message,
+      code: profileError.code,
+      details: profileError.details,
+      hint: profileError.hint,
+      userId: user.id,
+    });
+    await supabase.auth.signOut();
+    return {
+      success: false,
+      error: `Profile lookup failed: ${profileError.message}`,
+    };
+  }
+
+  console.log("[login] profile query result:", {
+    found: !!profile,
+    role: profile?.role ?? null,
+    is_active: profile?.is_active ?? null,
+    userId: user.id,
+  });
+
   if (!profile) {
+    console.error("[login] no profiles row for user.id:", user.id, "email:", user.email);
     await supabase.auth.signOut();
     return {
       success: false,
@@ -82,7 +115,9 @@ export async function loginAction(
     };
   }
 
+  // ── Step 3: active check ──────────────────────────────────────────────────
   if (profile.is_active === false) {
+    console.warn("[login] account is deactivated — user.id:", user.id);
     await supabase.auth.signOut();
     return {
       success: false,
@@ -90,12 +125,30 @@ export async function loginAction(
     };
   }
 
+  // ── Step 4: role validation ───────────────────────────────────────────────
+  const validRoles: Role[] = ["admin", "hr_finance", "cre", "employee"];
+  if (!validRoles.includes(profile.role as Role)) {
+    console.error("[login] invalid role in profiles table:", profile.role, "user.id:", user.id);
+    await supabase.auth.signOut();
+    return {
+      success: false,
+      error: `Account has an unrecognised role (${profile.role}). Contact your administrator.`,
+    };
+  }
+
+  const redirectTo = getRoleDashboardPath(profile.role as Role);
+  console.log("[login] success — role:", profile.role, "redirectTo:", redirectTo);
+
   revalidatePath("/", "layout");
 
   // Return redirect path — client calls router.push().
   // Never use redirect() inside a server action used with useActionState:
   // it throws NEXT_REDIRECT which the action wire protocol cannot serialise.
-  return { success: true, data: undefined, redirectTo: getRoleDashboardPath(profile.role as Role) };
+  return {
+    success: true,
+    data: undefined,
+    redirectTo,
+  };
 }
 
 // ── Logout ────────────────────────────────────────────────────────────────────
