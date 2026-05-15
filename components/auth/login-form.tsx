@@ -40,7 +40,7 @@ export function LoginForm() {
       toast.error(state.error);
     }
     if (state.success === true && state.redirectTo) {
-      router.replace(state.redirectTo);
+      router.push(state.redirectTo);
     }
   }, [state, router]);
 

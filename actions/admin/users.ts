@@ -24,32 +24,6 @@ async function assertAdmin() {
   return { error: null, userId: user.id };
 }
 
-// ── Update role ───────────────────────────────────────────────────────────────
-
-export async function updateUserRoleAction(
-  userId: string,
-  newRole: Role
-): Promise<ActionResult<UserProfile>> {
-  const { error, userId: currentUserId } = await assertAdmin();
-  if (error) return { success: false, error };
-
-  if (userId === currentUserId) {
-    return { success: false, error: "Cannot change your own role" };
-  }
-
-  const supabase = await createClient();
-  const { data, error: dbError } = await supabase
-    .from("profiles")
-    .update({ role: newRole })
-    .eq("id", userId)
-    .select()
-    .single();
-
-  if (dbError) return { success: false, error: dbError.message };
-  revalidatePath("/admin");
-  return { success: true, data: data as UserProfile };
-}
-
 // ── Create employee ───────────────────────────────────────────────────────────
 
 const createEmployeeSchema = z.object({
@@ -114,6 +88,7 @@ export async function createEmployeeAction(
       full_name,
       role: role as Role,
       employee_category: (employee_category as EmployeeCategory) ?? null,
+      is_active: true,
     },
     { onConflict: "id" }
   );
@@ -126,6 +101,118 @@ export async function createEmployeeAction(
 
   revalidatePath("/admin");
   return { success: true, data: undefined, message: `Account created for ${full_name}.` };
+}
+
+// ── Update employee ───────────────────────────────────────────────────────────
+
+const updateEmployeeSchema = z.object({
+  full_name: z.string().min(2, "Name must be at least 2 characters").max(80),
+  role: z.enum(["employee", "cre", "hr_finance", "admin"]),
+  employee_category: z.string().nullable().optional(),
+  phone: z.string().max(20).nullable().optional(),
+  department: z.string().max(80).nullable().optional(),
+});
+
+export async function updateEmployeeAction(
+  userId: string,
+  _prevState: ActionResult<UserProfile>,
+  formData: FormData
+): Promise<ActionResult<UserProfile>> {
+  const { error: authError } = await assertAdmin();
+  if (authError) return { success: false, error: authError };
+
+  const raw = {
+    full_name: (formData.get("full_name") as string)?.trim(),
+    role: formData.get("role") as string,
+    employee_category: (formData.get("employee_category") as string) || null,
+    phone: (formData.get("phone") as string)?.trim() || null,
+    department: (formData.get("department") as string)?.trim() || null,
+  };
+
+  const parsed = updateEmployeeSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      full_name: parsed.data.full_name,
+      role: parsed.data.role as Role,
+      employee_category: (parsed.data.employee_category as EmployeeCategory) ?? null,
+      phone: parsed.data.phone ?? null,
+      department: parsed.data.department ?? null,
+    })
+    .eq("id", userId)
+    .select()
+    .single();
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/admin");
+  return { success: true, data: data as UserProfile, message: "Employee updated." };
+}
+
+// ── Update role ───────────────────────────────────────────────────────────────
+
+export async function updateUserRoleAction(
+  userId: string,
+  newRole: Role
+): Promise<ActionResult<UserProfile>> {
+  const { error, userId: currentUserId } = await assertAdmin();
+  if (error) return { success: false, error };
+
+  if (userId === currentUserId) {
+    return { success: false, error: "Cannot change your own role" };
+  }
+
+  const supabase = await createClient();
+  const { data, error: dbError } = await supabase
+    .from("profiles")
+    .update({ role: newRole })
+    .eq("id", userId)
+    .select()
+    .single();
+
+  if (dbError) return { success: false, error: dbError.message };
+  revalidatePath("/admin");
+  return { success: true, data: data as UserProfile };
+}
+
+// ── Toggle active status ──────────────────────────────────────────────────────
+
+export async function toggleEmployeeActiveAction(
+  userId: string,
+  isActive: boolean
+): Promise<ActionResult> {
+  const { error: authError, userId: currentUserId } = await assertAdmin();
+  if (authError) return { success: false, error: authError };
+
+  if (userId === currentUserId) {
+    return { success: false, error: "Cannot change your own account status" };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ is_active: isActive })
+    .eq("id", userId);
+
+  if (error) return { success: false, error: error.message };
+
+  // When deactivating, force-sign-out all active sessions for this user.
+  if (!isActive) {
+    try {
+      const adminClient = createAdminClient();
+      await adminClient.auth.admin.signOut(userId);
+    } catch {
+      // Non-critical — profile is already deactivated; sessions expire naturally.
+    }
+  }
+
+  revalidatePath("/admin");
+  return { success: true, data: undefined };
 }
 
 // ── Delete employee ───────────────────────────────────────────────────────────
@@ -145,7 +232,7 @@ export async function deleteEmployeeAction(userId: string): Promise<ActionResult
     return { success: false, error: "Admin client unavailable. Set SUPABASE_SERVICE_ROLE_KEY." };
   }
 
-  // Deleting the auth user cascades to the profiles row via DB trigger / FK.
+  // Deleting the auth user cascades to the profiles row via DB FK / trigger.
   const { error } = await adminClient.auth.admin.deleteUser(userId);
   if (error) return { success: false, error: error.message };
 

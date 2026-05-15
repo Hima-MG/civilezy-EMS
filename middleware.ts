@@ -2,14 +2,9 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 const DASHBOARD_PREFIXES = ["/admin", "/hr", "/cre", "/employee"];
-export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
 
-  // Let auth callbacks pass through without session check — avoids
-  // interfering with Supabase email-confirmation redirects.
-  if (pathname.startsWith("/auth/")) {
-    return NextResponse.next({ request });
-  }
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -27,8 +22,8 @@ export async function proxy(request: NextRequest) {
         return request.cookies.getAll();
       },
       setAll(cookiesToSet) {
-        // Mirror refreshed tokens onto the request first so downstream
-        // Server Components see the updated JWT.
+        // Mirror refreshed tokens onto the request so downstream Server Components
+        // see the updated JWT, then write the new cookies onto the response.
         cookiesToSet.forEach(({ name, value }) =>
           request.cookies.set(name, value)
         );
@@ -40,10 +35,9 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  // getUser() validates the JWT with Supabase servers and triggers a token
-  // refresh when the access token is near expiry. DO NOT remove this call —
-  // without it Server Components will see stale/expired sessions and
-  // incorrectly redirect authenticated users to /login.
+  // getUser() validates the JWT with Supabase and triggers a token refresh when
+  // the access token is near expiry. This MUST stay here — without it, Server
+  // Components see stale/expired sessions and incorrectly redirect to /login.
   const {
     data: { user },
   } = await supabase.auth.getUser();

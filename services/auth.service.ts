@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { UserProfile, Role } from "@/types";
 
@@ -8,7 +9,9 @@ export interface AuthContext {
   role: Role | null;
 }
 
-export async function getAuthContext(): Promise<AuthContext> {
+// cache() deduplicates calls within the same request/render cycle — if multiple
+// Server Components call getAuthContext(), only one Supabase round-trip is made.
+export const getAuthContext = cache(async function getAuthContext(): Promise<AuthContext> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -32,4 +35,4 @@ export async function getAuthContext(): Promise<AuthContext> {
     profile: typedProfile,
     role: (typedProfile?.role ?? null) as Role | null,
   };
-}
+});
