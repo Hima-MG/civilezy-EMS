@@ -61,6 +61,8 @@ const CATEGORY_LABEL: Record<EmployeeCategory, string> = {
 
 // ── Meeting schedule ──────────────────────────────────────────
 
+const ZOOM_LINK = "https://us06web.zoom.us/j/84652005577?pwd=qgbZNPO9HSWl8m0Oe0hvsvUb9azFJQ.1";
+
 type MeetingAccent = "info" | "violet" | "success";
 
 const MEETINGS: {
@@ -72,18 +74,18 @@ const MEETINGS: {
   accent: MeetingAccent;
 }[] = [
   {
-    day: 2, dayName: "Tuesday",  title: "Team Standup",
-    time: "11:00 AM", description: "Weekly team sync — updates, blockers, priorities",
+    day: 2, dayName: "Tuesday",  title: "Weekly Team Meeting",
+    time: "10:00 AM", description: "Weekly team sync — updates, blockers, priorities. Platform: Zoom.",
     accent: "info",
   },
   {
-    day: 4, dayName: "Thursday", title: "Department Review",
-    time: "3:00 PM",  description: "Department progress review and planning session",
+    day: 4, dayName: "Thursday", title: "Weekly Team Meeting",
+    time: "10:00 AM", description: "Mid-week check-in and progress review. Platform: Zoom.",
     accent: "violet",
   },
   {
-    day: 6, dayName: "Saturday", title: "Weekly Wrap-up",
-    time: "10:00 AM", description: "Weekly summary, wins, and goals for next week",
+    day: 6, dayName: "Saturday", title: "Weekly Team Meeting",
+    time: "10:00 AM", description: "Weekly wrap-up, wins, and goals for next week. Platform: Zoom.",
     accent: "success",
   },
 ];
@@ -314,10 +316,16 @@ export function EmployeeTabs({
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {nextMeeting.dayName}s at {nextMeeting.time} · Next: {fmtShort(nextMeeting.date)}
+                      {nextMeeting.dayName}s at {nextMeeting.time} IST · Zoom
                     </p>
-                    <p className="text-xs text-muted-foreground/80 mt-0.5">{nextMeeting.description}</p>
+                    <p className="text-xs text-muted-foreground/80 mt-0.5">Next: {fmtShort(nextMeeting.date)}</p>
                   </div>
+                  <Button asChild size="sm" className="gap-1.5 shrink-0 bg-blue-600 hover:bg-blue-700 text-white self-center">
+                    <a href={ZOOM_LINK} target="_blank" rel="noopener noreferrer">
+                      <Video className="w-3.5 h-3.5" />
+                      Join
+                    </a>
+                  </Button>
                 </div>
               );
             })()}
@@ -465,10 +473,26 @@ export function EmployeeTabs({
       {/* ─────────────── MEETINGS ─────────────────────────── */}
       <TabsContent value="meetings" className="space-y-5 mt-0">
 
+        <div className="relative rounded-2xl border border-border/60 bg-card shadow-sm overflow-hidden">
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/8 to-transparent pointer-events-none" />
+          <div className="px-5 py-4 border-b border-border/40 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Weekly Team Meeting</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Tuesdays, Thursdays &amp; Saturdays at 10:00 AM IST · Zoom</p>
+            </div>
+            <Button asChild size="sm" className="gap-1.5 shrink-0 bg-blue-600 hover:bg-blue-700 text-white">
+              <a href={ZOOM_LINK} target="_blank" rel="noopener noreferrer">
+                <Video className="w-3.5 h-3.5" />
+                Join Meeting
+              </a>
+            </Button>
+          </div>
+        </div>
+
         <div>
           <SectionLabel>Weekly schedule</SectionLabel>
           <p className="text-xs text-muted-foreground -mt-1 mb-4">
-            Recurring meetings — attendance is mandatory. All sessions are conducted online.
+            Recurring meetings — attendance is mandatory. All sessions conducted via Zoom.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {MEETINGS.map((meeting) => {
@@ -488,13 +512,20 @@ export function EmployeeTabs({
                   <p className={`text-sm font-semibold mb-0.5 ${c.icon}`}>{meeting.title}</p>
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
                     <CalendarClock className="w-3.5 h-3.5 shrink-0" />
-                    <span>{meeting.dayName}s at {meeting.time}</span>
+                    <span>{meeting.dayName}s at {meeting.time} IST</span>
                   </div>
                   <p className="text-xs text-muted-foreground leading-relaxed">{meeting.description}</p>
                   <Separator className="my-3 opacity-40" />
-                  <p className="text-[11px] text-muted-foreground">
-                    Next: <span className="font-semibold text-foreground">{fmtShort(next)}</span>
-                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-muted-foreground">
+                      Next: <span className="font-semibold text-foreground">{fmtShort(next)}</span>
+                    </p>
+                    <Button asChild size="sm" variant="outline" className="h-7 text-[11px] gap-1 px-2.5">
+                      <a href={ZOOM_LINK} target="_blank" rel="noopener noreferrer">
+                        Join <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </Button>
+                  </div>
                 </div>
               );
             })}

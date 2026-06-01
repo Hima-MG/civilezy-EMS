@@ -7,7 +7,16 @@
       "Bash(for f *)",
       "Bash(npx next *)",
       "Bash(npx tsc *)",
-      "Bash(Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue)"
+      "Bash(Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue)",
+      "Bash(Get-ChildItem -Force)",
+      "Bash(Select-Object -Property Name, PSIsContainer)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(p.dependencies['@supabase/ssr'], p.dependencies['@supabase/supabase-js']\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('scripts:', json.dumps\\(d.get\\('scripts',{}\\), indent=2\\)\\); print\\('next:', d['dependencies'].get\\('next',''\\)\\)\")",
+      "PowerShell(cd \"C:\\\\Users\\\\Hima Girish\\\\Desktop\\\\civilezy\\\\civilEzy CRE-EMS\\\\civilezy-ems\"; \\(Get-Content package.json | ConvertFrom-Json\\).scripts)",
+      "PowerShell(cd \"C:\\\\Users\\\\Hima Girish\\\\Desktop\\\\civilezy\\\\civilEzy CRE-EMS\\\\civilezy-ems\"; [System.Environment]::GetEnvironmentVariable\\(\"NEXT_TURBOPACK\"\\); [System.Environment]::GetEnvironmentVariable\\(\"TURBOPACK\"\\))",
+      "Bash(node -e \"const v=require\\('./node_modules/next/package.json'\\).version; console.log\\('next version:', v\\)\")",
+      "Bash(node -e ' *)"
     ]
   }
 }

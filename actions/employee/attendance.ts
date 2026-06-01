@@ -57,6 +57,7 @@ export async function punchInAction(): Promise<ActionResult<AttendanceRecord>> {
 
   if (error) return { success: false, error: error.message };
   revalidatePath("/employee");
+  revalidatePath("/hr");
   return { success: true, data: data as AttendanceRecord };
 }
 
@@ -103,5 +104,6 @@ export async function punchOutAction(): Promise<ActionResult<AttendanceRecord>> 
 
   if (error) return { success: false, error: error.message };
   revalidatePath("/employee");
+  revalidatePath("/hr");
   return { success: true, data: data as AttendanceRecord };
 }

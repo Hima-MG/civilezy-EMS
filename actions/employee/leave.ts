@@ -49,5 +49,7 @@ export async function applyLeaveAction(
 
   if (error) return { success: false, error: error.message };
   revalidatePath("/employee");
+  revalidatePath("/hr");
+  revalidatePath("/admin");
   return { success: true, data: data as LeaveRequest };
 }

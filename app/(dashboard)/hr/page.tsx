@@ -16,6 +16,7 @@ import type {
   MonthlyPayrollPoint,
 } from "@/types";
 
+
 export const metadata: Metadata = { title: "HR & Finance Dashboard" };
 export const dynamic = "force-dynamic";
 
@@ -43,25 +44,26 @@ export default async function HRDashboard() {
   })();
 
   // ── All queries in one parallel batch (profile + data) ───────
-  // Profile and all data queries run together — saves one sequential RTT vs.
-  // the old pattern of fetching the profile first, then starting the data.
-  const [profilesResult, attendanceResult, leavesResult, salaryResult] =
+  const [
+    profilesResult, attendanceResult, leavesResult, salaryResult,
+    hrTodayAttRes, hrAttHistRes, hrLeaveHistRes,
+  ] =
     await Promise.all([
-      // All active employee profiles (fixed HR RLS policy via get_my_role())
+      // All active employee profiles
       supabase
         .from("profiles")
         .select("*")
         .eq("is_active", true)
         .order("full_name", { ascending: true }),
 
-      // Attendance for last 6 months
+      // Attendance for last 6 months (all staff)
       supabase
         .from("attendance")
         .select("*")
         .gte("attendance_date", sixMonthsAgoStart)
         .order("attendance_date", { ascending: false }),
 
-      // Leave requests — capped at 500 to bound payload size
+      // Leave requests — capped at 500
       supabase
         .from("leave_requests")
         .select("*")
@@ -73,6 +75,30 @@ export default async function HRDashboard() {
         .from("salary_records")
         .select("*")
         .order("month", { ascending: false }),
+
+      // HR's personal attendance today
+      supabase
+        .from("attendance")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("attendance_date", today)
+        .maybeSingle(),
+
+      // HR's attendance history (last 30 days)
+      supabase
+        .from("attendance")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("attendance_date", { ascending: false })
+        .limit(30),
+
+      // HR's personal leave history
+      supabase
+        .from("leave_requests")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(50),
     ]);
 
   const allProfiles = (profilesResult.data ?? []) as UserProfile[];
@@ -80,10 +106,17 @@ export default async function HRDashboard() {
   const rawLeaves = (leavesResult.data ?? []) as LeaveRequest[];
   const rawSalary = (salaryResult.data ?? []) as SalaryRecord[];
 
+  const hrTodayRecord = (hrTodayAttRes.data ?? null) as AttendanceRecord | null;
+  const hrAttendanceHistory = (hrAttHistRes.data ?? []) as AttendanceRecord[];
+  const hrLeaveHistory = (hrLeaveHistRes.data ?? []) as LeaveRequest[];
+
   // Employee-only profiles for dropdowns (exclude admin / hr from lists)
   const employeeProfiles = allProfiles.filter(
     (p) => p.role === "employee" || p.role === "cre"
   );
+
+  // Filter leaves to only employee/cre for HR's leave management view
+  const employeeUserIds = new Set(employeeProfiles.map((p) => p.id));
 
   // ── Build name lookup map ──────────────────────────────────
   const profileMap = new Map(allProfiles.map((p) => [p.id, p]));
@@ -94,11 +127,14 @@ export default async function HRDashboard() {
     email: profileMap.get(a.user_id)?.email ?? "",
   }));
 
-  const leaves: LeaveWithProfile[] = rawLeaves.map((l) => ({
-    ...l,
-    full_name: profileMap.get(l.user_id)?.full_name ?? "",
-    email: profileMap.get(l.user_id)?.email ?? "",
-  }));
+  // Only employee/cre leaves for HR's leave management (HR leaves go to admin)
+  const leaves: LeaveWithProfile[] = rawLeaves
+    .filter((l) => employeeUserIds.has(l.user_id))
+    .map((l) => ({
+      ...l,
+      full_name: profileMap.get(l.user_id)?.full_name ?? "",
+      email: profileMap.get(l.user_id)?.email ?? "",
+    }));
 
   const salaryRecords: SalaryWithProfile[] = rawSalary.map((s) => ({
     ...s,
@@ -116,9 +152,12 @@ export default async function HRDashboard() {
     .filter((s) => s.month === currentMonth)
     .reduce((sum, s) => sum + s.final_salary, 0);
 
+  // pendingLeaves counts only employee/cre leaves (HR leaves go to admin)
+  const employeePendingLeaves = leaves.filter((l) => l.status === "pending").length;
+
   const analytics: HrAnalytics = {
     totalEmployees,
-    pendingLeaves,
+    pendingLeaves: employeePendingLeaves,
     presentToday,
     monthlyPayroll,
   };
@@ -153,6 +192,9 @@ export default async function HRDashboard() {
         salaryRecords={salaryRecords}
         analytics={analytics}
         monthlyPayrollData={monthlyPayrollData}
+        hrTodayRecord={hrTodayRecord}
+        hrAttendanceHistory={hrAttendanceHistory}
+        hrLeaveHistory={hrLeaveHistory}
       />
     </DashboardLayout>
   );

@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   LayoutDashboard, UserCheck, IndianRupee, Target, Briefcase,
   BarChart2, Settings2, GraduationCap, RefreshCw, Clock,
   CalendarOff, PhoneCall, TrendingUp, Users, AlertCircle,
   CheckCircle2, Trophy, ArrowRight, ClipboardList, Wallet,
-  Building2,
+  Building2, Check, X,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
@@ -19,6 +22,7 @@ import { AnalyticsSection, PayrollTrendChart } from "./analytics-charts";
 import { useUrlTab } from "@/hooks/use-url-tab";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { updateHrLeaveStatusAction } from "@/actions/hr/leaves";
 import type {
   AdminStats,
   AdminActivityItem,
@@ -208,10 +212,27 @@ export function AdminTabs({
   topCre,
 }: AdminTabsProps) {
   const [activeTab, setActiveTab] = useUrlTab(VALID_TABS, "overview");
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const [loadingLeaveId, setLoadingLeaveId] = useState<string | null>(null);
+
+  async function handleHrLeaveAction(id: string, status: "approved" | "rejected") {
+    setLoadingLeaveId(id);
+    const result = await updateHrLeaveStatusAction(id, status);
+    setLoadingLeaveId(null);
+    if (result.success) {
+      toast.success(`HR leave ${status}.`);
+      startTransition(() => router.refresh());
+    } else {
+      toast.error(result.error);
+    }
+  }
 
   // ── Derived data ─────────────────────────────────────────────
 
-  const pendingLeaves  = leavesEnriched.filter((l) => l.status === "pending");
+  const hrUserIds = new Set(users.filter((u) => u.role === "hr_finance").map((u) => u.id));
+  const hrPendingLeaves = leavesEnriched.filter((l) => l.status === "pending" && hrUserIds.has(l.user_id));
+  const pendingLeaves  = leavesEnriched.filter((l) => l.status === "pending" && !hrUserIds.has(l.user_id));
   const pendingSalary  = salaryEnriched.filter((s) => s.status === "pending");
   const paidSalary     = salaryEnriched.filter((s) => s.status === "paid");
   const conversionRate = stats.totalLeads > 0
@@ -250,7 +271,7 @@ export function AdminTabs({
             { value: "finance",    icon: Wallet,          label: "Finance" },
             { value: "crm",        icon: Target,          label: "CRM" },
             { value: "hr",         icon: Briefcase,       label: "HR",
-              badge: stats.pendingLeaves > 0 ? String(stats.pendingLeaves) : undefined,
+              badge: hrPendingLeaves.length > 0 ? String(hrPendingLeaves.length) : undefined,
               badgeVariant: "amber" },
             { value: "analytics",  icon: BarChart2,       label: "Analytics" },
             { value: "students",   icon: GraduationCap,   label: "Students" },
@@ -572,17 +593,80 @@ export function AdminTabs({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <KpiCard title="Total Staff"     value={stats.totalEmployees}                     subtitle="Active accounts"   icon={Users}      accent="default" />
           <KpiCard title="Present Today"   value={stats.attendanceToday}                   subtitle="Punched in"        icon={UserCheck}  accent="green" />
-          <KpiCard title="Pending Leaves"  value={stats.pendingLeaves}                     subtitle="Awaiting approval" icon={CalendarOff} accent="yellow" />
+          <KpiCard title="HR Pending Leaves" value={hrPendingLeaves.length}                subtitle="Awaiting admin"    icon={CalendarOff} accent="yellow" />
           <KpiCard title="Monthly Payroll" value={formatCurrency(stats.monthlyPayroll)}    subtitle="Current month"     icon={IndianRupee} accent="green" />
         </div>
 
-        {/* Pending leaves */}
+        {/* HR Leave Approval (admin only) */}
         <div className="relative rounded-2xl border border-border/60 bg-card overflow-hidden shadow-sm">
           <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/8 to-transparent pointer-events-none z-10" />
           <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
             <div>
-              <p className="text-sm font-semibold text-foreground">Pending Leave Requests</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Approve or reject from the HR portal</p>
+              <p className="text-sm font-semibold text-foreground">HR Leave Requests</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Only admin can approve or reject HR leave requests</p>
+            </div>
+            {hrPendingLeaves.length > 0 && (
+              <span className="text-xs font-semibold bg-amber-500/12 text-amber-500 rounded-full px-2.5 py-1">
+                {hrPendingLeaves.length} pending
+              </span>
+            )}
+          </div>
+
+          {hrPendingLeaves.length === 0 ? (
+            <EmptyState icon={CalendarOff} title="No pending HR leave requests" variant="inline" />
+          ) : (
+            <div className="divide-y divide-border/30">
+              {hrPendingLeaves.slice(0, 20).map((leave) => {
+                const isLoading = loadingLeaveId === leave.id;
+                return (
+                  <div key={leave.id} className="flex items-center justify-between px-5 py-3 hover:bg-accent/20 transition-colors">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground">{leave.full_name || "—"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {LEAVE_TYPE_LABEL[leave.leave_type] ?? leave.leave_type} ·{" "}
+                        {fmtDate(leave.from_date)} → {fmtDate(leave.to_date)}
+                      </p>
+                      {leave.reason && (
+                        <p className="text-xs text-muted-foreground/70 mt-0.5 truncate max-w-[300px]">{leave.reason}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 ml-3 shrink-0">
+                      <StatusBadge status="pending" label="Pending" size="sm" dot />
+                      <button
+                        className="flex items-center justify-center w-7 h-7 rounded-lg border border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10 disabled:opacity-40 transition-colors"
+                        disabled={isLoading}
+                        onClick={() => handleHrLeaveAction(leave.id, "approved")}
+                        title="Approve"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        className="flex items-center justify-center w-7 h-7 rounded-lg border border-red-500/30 text-red-500 hover:bg-red-500/10 disabled:opacity-40 transition-colors"
+                        disabled={isLoading}
+                        onClick={() => handleHrLeaveAction(leave.id, "rejected")}
+                        title="Reject"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="px-5 py-3 border-t border-border/40 bg-muted/10">
+            <p className="text-xs text-muted-foreground">HR leave requests require admin approval</p>
+          </div>
+        </div>
+
+        {/* Employee pending leaves — managed by HR portal */}
+        <div className="relative rounded-2xl border border-border/60 bg-card overflow-hidden shadow-sm">
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/8 to-transparent pointer-events-none z-10" />
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Employee Pending Leaves</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Managed by HR — approve from HR portal</p>
             </div>
             {pendingLeaves.length > 0 && (
               <span className="text-xs font-semibold bg-amber-500/12 text-amber-500 rounded-full px-2.5 py-1">
@@ -592,7 +676,7 @@ export function AdminTabs({
           </div>
 
           {pendingLeaves.length === 0 ? (
-            <EmptyState icon={CalendarOff} title="No pending leave requests" variant="inline" />
+            <EmptyState icon={CalendarOff} title="No pending employee leave requests" variant="inline" />
           ) : (
             <div className="divide-y divide-border/30">
               {pendingLeaves.slice(0, 10).map((leave) => (
@@ -611,7 +695,7 @@ export function AdminTabs({
           )}
 
           <div className="flex items-center justify-between px-5 py-3 border-t border-border/40 bg-muted/10">
-            <p className="text-xs text-muted-foreground">Manage approvals in the HR portal</p>
+            <p className="text-xs text-muted-foreground">Manage employee approvals in the HR portal</p>
             <Link href="/hr?tab=leaves" className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1 transition-colors">
               Open HR Portal <ArrowRight className="w-3 h-3" />
             </Link>

@@ -39,5 +39,37 @@ export async function updateLeaveStatusAction(
 
   if (dbError) return { success: false, error: dbError.message };
   revalidatePath("/hr");
+  revalidatePath("/admin");
+  return { success: true, data: data as LeaveRequest };
+}
+
+export async function updateHrLeaveStatusAction(
+  id: string,
+  status: "approved" | "rejected"
+): Promise<ActionResult<LeaveRequest>> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!profile || profile.role !== "admin") {
+    return { success: false, error: "Only admin can approve HR leave requests" };
+  }
+
+  const { data, error: dbError } = await supabase
+    .from("leave_requests")
+    .update({ status })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (dbError) return { success: false, error: dbError.message };
+  revalidatePath("/admin");
+  revalidatePath("/hr");
   return { success: true, data: data as LeaveRequest };
 }
