@@ -23,7 +23,14 @@
       "Bash(mkdir -p \"C:/Users/Hima Girish/Desktop/civilezy/civilEzy CRE-EMS/civilezy-ems/app/api/webhooks/ezycourse/[secret]\")",
       "Bash(grep -n \"EZYCOURSE\" .env.local)",
       "Bash(echo \"exit:$?\")",
-      "Bash(command -v vercel)"
+      "Bash(command -v vercel)",
+      "Bash(cp /tmp/check_webhooks.mjs ./check_webhooks_tmp.mjs)",
+      "Bash(node check_webhooks_tmp.mjs)",
+      "Bash(command -v supabase)",
+      "Bash(npx --yes supabase --version)",
+      "Bash(npx supabase *)",
+      "Bash(sed -i \"s/\\\\.optional\\(\\)/\\\\.nullish\\(\\)/g\" run_processing_tmp.mjs)",
+      "Bash(node run_processing_tmp.mjs)"
     ]
   }
 }

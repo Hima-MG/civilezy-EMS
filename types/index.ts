@@ -229,6 +229,8 @@ export interface WorkReportWithProfile extends WorkReport {
 
 // ── EzyCourse Integration (discovery phase) ──────────────────
 
+export type ProcessingStatus = "pending" | "processed" | "failed";
+
 export interface WebhookLog {
   id: string;
   source: string;
@@ -236,6 +238,81 @@ export interface WebhookLog {
   payload: unknown;
   headers: Record<string, string>;
   processed: boolean;
+  processing_status: ProcessingStatus;
+  retry_count: number;
+  last_error: string | null;
+  processed_at: string | null;
+  created_at: string;
+}
+
+export interface Student {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  full_name: string | null;
+  phone_number: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
+  ezycourse_school_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CoursePurchase {
+  id: string;
+  ezycourse_order_id: string;
+  student_id: string;
+  product_id: string;
+  product_name: string;
+  product_type: string;
+  product_owner_id: string | null;
+  product_owner_email: string | null;
+  price: number;
+  gateway: string | null;
+  interval: string | null;
+  interval_count: number | null;
+  coupon_code: string | null;
+  expiry_date: string | null;
+  metadata: unknown;
+  webhook_log_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MembershipRenewal {
+  id: string;
+  membership_id: string;
+  student_id: string;
+  membership_type: string | null;
+  membership_status: string | null;
+  change_type: string | null;
+  product_name: string | null;
+  price: number | null;
+  gateway: string | null;
+  currency: string | null;
+  school_id: string | null;
+  seller_id: string | null;
+  expiry_date: string | null;
+  webhook_log_id: string | null;
+  created_at: string;
+}
+
+export type ActivityType = "registration" | "purchase" | "renewal" | "expiry" | "payment" | "refund";
+
+export interface ActivityLog {
+  id: string;
+  student_id: string;
+  activity_type: ActivityType;
+  description: string | null;
+  metadata: unknown;
+  source_table: string | null;
+  source_id: string | null;
+  occurred_at: string;
   created_at: string;
 }
 
