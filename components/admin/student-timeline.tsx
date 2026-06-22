@@ -1,3 +1,5 @@
+"use client";
+
 import { UserPlus, ShoppingCart, RefreshCw, AlertTriangle, CreditCard, RotateCcw, Clock } from "lucide-react";
 import { EmptyState } from "@/components/ds";
 import { cn } from "@/lib/utils";

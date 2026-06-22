@@ -1,3 +1,5 @@
+"use client";
+
 import { IndianRupee, Users, RefreshCw, AlertTriangle, UserPlus, ShoppingCart } from "lucide-react";
 import { KpiCard, EmptyState } from "@/components/ds";
 import { formatCurrency, formatDate } from "@/lib/utils";

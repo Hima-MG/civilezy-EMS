@@ -1,13 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/services/auth.service";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { unwrap } from "@/lib/supabase/query";
 import { StudentsSearch } from "@/components/admin/students-search";
-import { EmptyState } from "@/components/ds";
-import { Users } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import { StudentsTable } from "@/components/admin/students-table";
 import type { Student } from "@/types";
 
 export const metadata: Metadata = { title: "EzyCourse Students" };
@@ -55,44 +52,7 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
     >
       <div className="space-y-4">
         <StudentsSearch search={search} pagination={{ page, totalPages, total, pageSize: PAGE_SIZE }} />
-
-        <div className="relative rounded-2xl border border-border/60 bg-card overflow-hidden shadow-sm">
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/8 to-transparent pointer-events-none" />
-          {students.length === 0 ? (
-            <EmptyState
-              icon={Users}
-              title={search ? "No students match your search" : "No students yet"}
-              description={search ? undefined : "Students appear here once a course purchase or renewal webhook is processed."}
-              variant="inline"
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/40">
-                    {["Name", "Email", "Phone", "Joined"].map((h) => (
-                      <th key={h} className="px-4 py-3 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground bg-muted/20 text-left">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {students.map((s) => (
-                    <tr key={s.id} className="border-b border-border/30 last:border-0 hover:bg-accent/20 transition-colors">
-                      <td className="px-4 py-3">
-                        <Link href={`/admin/ezycourse/students/${s.id}`} className="font-medium text-primary hover:underline">
-                          {s.full_name || "—"}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">{s.email}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{s.phone_number || "—"}</td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(s.created_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <StudentsTable students={students} search={search} />
       </div>
     </DashboardLayout>
   );
