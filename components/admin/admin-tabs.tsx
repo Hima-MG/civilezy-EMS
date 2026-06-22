@@ -19,6 +19,8 @@ import type { ActivityItem } from "@/components/ds";
 import type { StatusVariant } from "@/components/ds";
 import { UserManagement } from "./user-management";
 import { AnalyticsSection, PayrollTrendChart } from "./analytics-charts";
+import { StudentsModule } from "./students-module";
+import { RenewalsModule } from "./renewals-module";
 import { useUrlTab } from "@/hooks/use-url-tab";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -33,6 +35,8 @@ import type {
   UserProfile,
   LeaveWithProfile,
   SalaryWithProfile,
+  StudentWithMembership,
+  RenewalQueueEntryWithStudent,
 } from "@/types";
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -132,41 +136,6 @@ function PipelineStrip({ leadStatusData, totalLeads }: { leadStatusData: LeadSta
   );
 }
 
-function ComingSoonCard({ icon: Icon, title, description, features }: {
-  icon: typeof GraduationCap;
-  title: string;
-  description: string;
-  features: string[];
-}) {
-  return (
-    <div className="rounded-2xl border border-border/60 bg-card overflow-hidden shadow-sm">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/8 to-transparent pointer-events-none" />
-
-      <div className="flex flex-col items-center justify-center py-16 px-8 text-center space-y-5">
-        <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-          <Icon className="w-7 h-7 text-primary" strokeWidth={1.5} />
-        </div>
-        <div className="space-y-1.5">
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary mb-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            Coming Soon
-          </div>
-          <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-          <p className="text-sm text-muted-foreground max-w-sm">{description}</p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-md">
-          {features.map((f) => (
-            <div key={f} className="flex items-center gap-2 rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-primary/50" />
-              <span className="text-xs text-muted-foreground">{f}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Props ──────────────────────────────────────────────────────────
 
 interface TopCreEntry {
@@ -191,6 +160,8 @@ interface AdminTabsProps {
   leavesEnriched: LeaveWithProfile[];
   salaryEnriched: SalaryWithProfile[];
   topCre: TopCreEntry[];
+  students: StudentWithMembership[];
+  renewalQueue: RenewalQueueEntryWithStudent[];
 }
 
 // ── Component ──────────────────────────────────────────────────────
@@ -210,6 +181,8 @@ export function AdminTabs({
   leavesEnriched,
   salaryEnriched,
   topCre,
+  students,
+  renewalQueue,
 }: AdminTabsProps) {
   const [activeTab, setActiveTab] = useUrlTab(VALID_TABS, "overview");
   const router = useRouter();
@@ -715,36 +688,12 @@ export function AdminTabs({
 
       {/* ── STUDENTS ──────────────────────────────────────────────── */}
       <TabsContent value="students">
-        <ComingSoonCard
-          icon={GraduationCap}
-          title="Student Operations"
-          description="A comprehensive student lifecycle management system — from enquiry to enrollment and progress tracking."
-          features={[
-            "Student enquiry tracking",
-            "Course enrollment management",
-            "Batch & schedule management",
-            "Fee collection records",
-            "Progress & performance reports",
-            "Attendance tracking",
-          ]}
-        />
+        <StudentsModule students={students} />
       </TabsContent>
 
       {/* ── RENEWALS ──────────────────────────────────────────────── */}
       <TabsContent value="renewals">
-        <ComingSoonCard
-          icon={RefreshCw}
-          title="Renewal Queue"
-          description="Track and manage subscription renewals, license expiries, and contract renewal workflows."
-          features={[
-            "Renewal reminder queue",
-            "Contract expiry tracking",
-            "Automated reminder notifications",
-            "Renewal approval workflow",
-            "Historical renewal records",
-            "Revenue forecasting",
-          ]}
-        />
+        <RenewalsModule students={students} renewalQueue={renewalQueue} />
       </TabsContent>
 
       {/* ── SETTINGS ──────────────────────────────────────────────── */}

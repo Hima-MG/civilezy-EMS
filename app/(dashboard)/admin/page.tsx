@@ -16,6 +16,10 @@ import type {
   LeadStatusPoint,
   AttendanceTrendPoint,
   MonthlyPayrollPoint,
+  Student,
+  RenewalQueueEntry,
+  StudentWithMembership,
+  RenewalQueueEntryWithStudent,
 } from "@/types";
 
 export const metadata: Metadata = { title: "Admin Dashboard" };
@@ -87,6 +91,9 @@ export default async function AdminDashboard() {
     leavesResult,
     salaryResult,
     leadsResult,
+    studentsResult,
+    currentMembershipsResult,
+    renewalQueueResult,
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -119,6 +126,25 @@ export default async function AdminDashboard() {
       .from("leads")
       .select("id, name, course_interest, source, status, created_by, created_at")
       .order("created_at", { ascending: false }),
+
+    // EzyCourse-synced students — capped to bound payload size on large orgs
+    supabase
+      .from("students")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(500),
+
+    // Latest renewal per membership — drives expiry-status badges + buckets
+    supabase
+      .from("current_memberships")
+      .select("*"),
+
+    // Manual HR renewal workflow queue
+    supabase
+      .from("renewal_queue")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(200),
   ]);
 
   const allProfiles = unwrap(profilesResult, "profiles") as UserProfile[];
@@ -126,6 +152,53 @@ export default async function AdminDashboard() {
   const rawLeaves = unwrap(leavesResult, "leave requests") as LeaveRequest[];
   const rawSalary = unwrap(salaryResult, "salary records") as SalaryRecord[];
   const rawLeads = unwrap(leadsResult, "leads") as Lead[];
+  const rawStudents = unwrap(studentsResult, "students") as Student[];
+  const currentMemberships = unwrap(currentMembershipsResult, "current memberships") as {
+    membership_id: string;
+    student_id: string;
+    membership_type: string | null;
+    membership_status: string | null;
+    product_name: string | null;
+    price: number | null;
+    currency: string | null;
+    expiry_date: string | null;
+  }[];
+  const rawRenewalQueue = unwrap(renewalQueueResult, "renewal queue") as RenewalQueueEntry[];
+
+  // ── Students + current membership state ─────────────────────
+  // Each student's most recent membership across (possibly) multiple
+  // memberships — fine for the dashboard list, which shows one status
+  // badge per student rather than per membership.
+  const membershipByStudent = new Map<string, (typeof currentMemberships)[number]>();
+  for (const m of currentMemberships) {
+    const existing = membershipByStudent.get(m.student_id);
+    if (!existing || (m.expiry_date ?? "") > (existing.expiry_date ?? "")) {
+      membershipByStudent.set(m.student_id, m);
+    }
+  }
+  const studentsWithMembership: StudentWithMembership[] = rawStudents.map((s) => {
+    const m = membershipByStudent.get(s.id);
+    return {
+      ...s,
+      membership_status: m?.membership_status ?? null,
+      membership_type: m?.membership_type ?? null,
+      product_name: m?.product_name ?? null,
+      expiry_date: m?.expiry_date ?? null,
+      price: m?.price ?? null,
+      currency: m?.currency ?? null,
+    };
+  });
+
+  const studentMap = new Map(rawStudents.map((s) => [s.id, s]));
+  const renewalQueue: RenewalQueueEntryWithStudent[] = rawRenewalQueue.map((r) => {
+    const s = studentMap.get(r.student_id);
+    return {
+      ...r,
+      student_name: s?.full_name ?? s?.email ?? "Unknown",
+      student_email: s?.email ?? "",
+      student_phone: s?.phone_number ?? null,
+    };
+  });
 
   // ── Profile lookup map ─────────────────────────────────────
   const profileMap = new Map(allProfiles.map((p) => [p.id, p]));
@@ -303,6 +376,8 @@ export default async function AdminDashboard() {
         leavesEnriched={leavesEnriched}
         salaryEnriched={salaryEnriched}
         topCre={topCre}
+        students={studentsWithMembership}
+        renewalQueue={renewalQueue}
       />
     </DashboardLayout>
   );

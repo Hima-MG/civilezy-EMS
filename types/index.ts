@@ -316,6 +316,45 @@ export interface ActivityLog {
   created_at: string;
 }
 
+export type RenewalQueueStatus =
+  | "pending_payment"
+  | "payment_received"
+  | "verification_pending"
+  | "ready_for_renewal"
+  | "renewed"
+  | "follow_up_required";
+
+export interface RenewalQueueEntry {
+  id: string;
+  student_id: string;
+  membership_id: string | null;
+  product_name: string | null;
+  amount: number | null;
+  due_date: string | null;
+  status: RenewalQueueStatus;
+  payment_reference: string | null;
+  notes: string | null;
+  assigned_to: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StudentWithMembership extends Student {
+  membership_status: string | null;
+  membership_type: string | null;
+  product_name: string | null;
+  expiry_date: string | null;
+  price: number | null;
+  currency: string | null;
+}
+
+export interface RenewalQueueEntryWithStudent extends RenewalQueueEntry {
+  student_name: string;
+  student_email: string;
+  student_phone: string | null;
+}
+
 export interface WorkReportReview {
   id: string;
   work_report_id: string;
