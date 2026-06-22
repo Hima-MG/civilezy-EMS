@@ -30,7 +30,9 @@
       "Bash(npx --yes supabase --version)",
       "Bash(npx supabase *)",
       "Bash(sed -i \"s/\\\\.optional\\(\\)/\\\\.nullish\\(\\)/g\" run_processing_tmp.mjs)",
-      "Bash(node run_processing_tmp.mjs)"
+      "Bash(node run_processing_tmp.mjs)",
+      "Bash(npx --yes vercel whoami)",
+      "Bash(npx --yes vercel link --yes)"
     ]
   }
 }
