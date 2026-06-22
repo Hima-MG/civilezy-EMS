@@ -22,7 +22,8 @@
       "Bash(npm run *)",
       "Bash(mkdir -p \"C:/Users/Hima Girish/Desktop/civilezy/civilEzy CRE-EMS/civilezy-ems/app/api/webhooks/ezycourse/[secret]\")",
       "Bash(grep -n \"EZYCOURSE\" .env.local)",
-      "Bash(echo \"exit:$?\")"
+      "Bash(echo \"exit:$?\")",
+      "Bash(command -v vercel)"
     ]
   }
 }
