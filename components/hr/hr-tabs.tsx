@@ -14,6 +14,7 @@ import {
 } from "@/components/ds";
 import type { DataColumn } from "@/components/ds";
 import { AttendanceView } from "./attendance-view";
+import type { AttendancePageResult } from "@/actions/hr/attendance";
 import { LeaveManagement } from "./leave-management";
 import { SalaryManager } from "./salary-manager";
 import { PayrollChart } from "./payroll-chart";
@@ -128,6 +129,7 @@ const VALID_TABS = ["overview", "attendance", "leaves", "payroll", "employees", 
 interface HrTabsProps {
   profiles: UserProfile[];
   attendance: AttendanceWithProfile[];
+  attendanceInitialPage: AttendancePageResult;
   leaves: LeaveWithProfile[];
   salaryRecords: SalaryWithProfile[];
   analytics: HrAnalytics;
@@ -140,6 +142,7 @@ interface HrTabsProps {
 export function HrTabs({
   profiles,
   attendance,
+  attendanceInitialPage,
   leaves,
   salaryRecords,
   analytics,
@@ -395,7 +398,7 @@ export function HrTabs({
 
       {/* ── ATTENDANCE ───────────────────────────────────────────── */}
       <TabsContent value="attendance">
-        <AttendanceView attendance={attendance} profiles={profiles} />
+        <AttendanceView initialData={attendanceInitialPage} profiles={profiles} />
       </TabsContent>
 
       {/* ── LEAVES ───────────────────────────────────────────────── */}

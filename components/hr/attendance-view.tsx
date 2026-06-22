@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Download, Search, Calendar } from "lucide-react";
+import { useState, useEffect, useTransition, useCallback, useRef } from "react";
+import { Download, Search, Calendar, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,7 +10,8 @@ import {
 import { StatusBadge } from "@/components/ds";
 import { EmptyState } from "@/components/ds";
 import { cn } from "@/lib/utils";
-import type { AttendanceWithProfile, UserProfile } from "@/types";
+import { getAttendancePageAction, exportAttendanceAction, type AttendancePageResult } from "@/actions/hr/attendance";
+import type { UserProfile } from "@/types";
 import type { StatusVariant } from "@/components/ds";
 
 function fmtMonthLabel(m: string) {
@@ -44,41 +45,70 @@ function downloadCSV(rows: (string | number)[][], filename: string) {
 }
 
 interface AttendanceViewProps {
-  attendance: AttendanceWithProfile[];
+  initialData: AttendancePageResult;
   profiles: UserProfile[];
 }
 
-export function AttendanceView({ attendance, profiles }: AttendanceViewProps) {
+// Attendance scales unboundedly with org age (every employee × every day),
+// so this view fetches a page at a time from the server instead of holding
+// the full multi-month dataset in the browser.
+export function AttendanceView({ initialData, profiles }: AttendanceViewProps) {
   const currentMonth = new Date().toISOString().slice(0, 7);
 
+  const [data, setData] = useState<AttendancePageResult>(initialData);
   const [employeeFilter, setEmployeeFilter] = useState("all");
   const [monthFilter,    setMonthFilter]    = useState(currentMonth);
   const [dateFrom,       setDateFrom]       = useState("");
   const [dateTo,         setDateTo]         = useState("");
   const [search,         setSearch]         = useState("");
+  const [page,           setPage]           = useState(1);
+  const [isPending, startTransition] = useTransition();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const availableMonths = useMemo(() => {
-    const set = new Set(attendance.map((a) => a.attendance_date.slice(0, 7)));
-    return Array.from(set).sort().reverse();
-  }, [attendance]);
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    return attendance.filter((a) => {
-      if (monthFilter !== "all" && !a.attendance_date.startsWith(monthFilter)) return false;
-      if (employeeFilter !== "all" && a.user_id !== employeeFilter) return false;
-      if (dateFrom && a.attendance_date < dateFrom) return false;
-      if (dateTo && a.attendance_date > dateTo) return false;
-      if (q && !a.full_name.toLowerCase().includes(q)) return false;
-      return true;
+  const fetchPage = useCallback((nextPage: number, overrides: Partial<{
+    employeeFilter: string; monthFilter: string; dateFrom: string; dateTo: string; search: string;
+  }> = {}) => {
+    const f = {
+      employeeId: (overrides.employeeFilter ?? employeeFilter) === "all" ? undefined : (overrides.employeeFilter ?? employeeFilter),
+      month: overrides.monthFilter ?? monthFilter,
+      dateFrom: overrides.dateFrom ?? dateFrom,
+      dateTo: overrides.dateTo ?? dateTo,
+      search: overrides.search ?? search,
+      page: nextPage,
+    };
+    startTransition(async () => {
+      const result = await getAttendancePageAction(f);
+      if (result.success) {
+        setData(result.data);
+        setPage(nextPage);
+      }
     });
-  }, [attendance, monthFilter, employeeFilter, dateFrom, dateTo, search]);
+  }, [employeeFilter, monthFilter, dateFrom, dateTo, search]);
 
-  const totalHours = useMemo(() => filtered.reduce((s, a) => s + (a.total_hours ?? 0), 0), [filtered]);
+  function onEmployeeChange(v: string) { setEmployeeFilter(v); fetchPage(1, { employeeFilter: v }); }
+  function onMonthChange(v: string) { setMonthFilter(v); fetchPage(1, { monthFilter: v }); }
+  function onDateFromChange(v: string) { setDateFrom(v); fetchPage(1, { dateFrom: v }); }
+  function onDateToChange(v: string) { setDateTo(v); fetchPage(1, { dateTo: v }); }
 
-  function handleExport() {
+  function onSearchChange(v: string) {
+    setSearch(v);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchPage(1, { search: v }), 350);
+  }
+
+  useEffect(() => () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+  }, []);
+
+  async function handleExport() {
+    const result = await exportAttendanceAction({
+      employeeId: employeeFilter === "all" ? undefined : employeeFilter,
+      month: monthFilter,
+      dateFrom, dateTo, search,
+    });
+    if (!result.success) return;
     const header = ["Employee", "Email", "Date", "Punch In", "Punch Out", "Total Hours", "Status"];
-    const rows = filtered.map((a) => [
+    const rows = result.data.map((a) => [
       a.full_name, a.email, a.attendance_date,
       a.punch_in ? new Date(a.punch_in).toLocaleTimeString("en-IN") : "",
       a.punch_out ? new Date(a.punch_out).toLocaleTimeString("en-IN") : "",
@@ -91,20 +121,18 @@ export function AttendanceView({ attendance, profiles }: AttendanceViewProps) {
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
-        <Select value={monthFilter} onValueChange={setMonthFilter}>
+        <Select value={monthFilter} onValueChange={onMonthChange}>
           <SelectTrigger className="w-44 h-9 shrink-0 bg-muted/40 border-border/60 rounded-xl focus:ring-0">
             <Calendar className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
             <SelectValue placeholder="Select month" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Months</SelectItem>
-            {availableMonths.map((m) => (
-              <SelectItem key={m} value={m}>{fmtMonthLabel(m)}</SelectItem>
-            ))}
+            <SelectItem value={currentMonth}>{fmtMonthLabel(currentMonth)}</SelectItem>
           </SelectContent>
         </Select>
 
-        <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
+        <Select value={employeeFilter} onValueChange={onEmployeeChange}>
           <SelectTrigger className="w-48 h-9 shrink-0 bg-muted/40 border-border/60 rounded-xl focus:ring-0">
             <SelectValue placeholder="All Employees" />
           </SelectTrigger>
@@ -122,14 +150,14 @@ export function AttendanceView({ attendance, profiles }: AttendanceViewProps) {
             placeholder="Search employee…"
             className="pl-8.5 h-9 bg-muted/40 border-border/60 rounded-xl focus-visible:ring-0 focus-visible:border-border text-sm"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => onSearchChange(e.target.value)}
           />
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <Input type="date" className="h-9 w-36 bg-muted/40 border-border/60 rounded-xl text-sm" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          <Input type="date" className="h-9 w-36 bg-muted/40 border-border/60 rounded-xl text-sm" value={dateFrom} onChange={(e) => onDateFromChange(e.target.value)} />
           <span className="text-xs text-muted-foreground">to</span>
-          <Input type="date" className="h-9 w-36 bg-muted/40 border-border/60 rounded-xl text-sm" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          <Input type="date" className="h-9 w-36 bg-muted/40 border-border/60 rounded-xl text-sm" value={dateTo} onChange={(e) => onDateToChange(e.target.value)} />
         </div>
 
         <Button variant="outline" size="sm" className="gap-1.5 shrink-0 rounded-xl border-border/60" onClick={handleExport}>
@@ -140,17 +168,22 @@ export function AttendanceView({ attendance, profiles }: AttendanceViewProps) {
 
       {/* Summary strip */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
-        <span><span className="font-medium text-foreground">{filtered.length}</span> record{filtered.length !== 1 ? "s" : ""}</span>
-        <span>Total hours: <span className="font-medium text-foreground">{totalHours.toFixed(1)}h</span></span>
-        <span>Present: <span className="font-medium text-emerald-500">{filtered.filter((a) => a.status === "present").length}</span></span>
-        <span>Absent: <span className="font-medium text-red-500">{filtered.filter((a) => a.status === "absent").length}</span></span>
+        <span><span className="font-medium text-foreground">{data.total}</span> record{data.total !== 1 ? "s" : ""}</span>
+        <span>Total hours: <span className="font-medium text-foreground">{data.totalHours.toFixed(1)}h</span></span>
+        <span>Present: <span className="font-medium text-emerald-500">{data.presentCount}</span></span>
+        <span>Absent: <span className="font-medium text-red-500">{data.absentCount}</span></span>
       </div>
 
       {/* Table */}
       <div className="relative rounded-2xl border border-border/60 bg-card overflow-hidden shadow-sm">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/8 to-transparent pointer-events-none z-10" />
+        {isPending && (
+          <div className="absolute inset-0 bg-background/40 backdrop-blur-[1px] z-20 flex items-center justify-center">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+        )}
 
-        {filtered.length === 0 ? (
+        {data.records.length === 0 ? (
           <EmptyState
             icon={Calendar}
             title="No attendance records found"
@@ -182,7 +215,7 @@ export function AttendanceView({ attendance, profiles }: AttendanceViewProps) {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((a) => {
+                {data.records.map((a) => {
                   const sm = STATUS_MAP[a.status];
                   return (
                     <tr key={a.id} className="border-b border-border/30 last:border-0 hover:bg-accent/20 transition-colors duration-100">
@@ -211,11 +244,30 @@ export function AttendanceView({ attendance, profiles }: AttendanceViewProps) {
           </div>
         )}
 
-        {filtered.length > 0 && (
-          <div className="px-4 py-3 border-t border-border/40 bg-muted/10">
-            <p className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""} shown</p>
-          </div>
-        )}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-border/40 bg-muted/10">
+          <p className="text-xs text-muted-foreground">{data.total} record{data.total !== 1 ? "s" : ""}</p>
+          {data.totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                aria-label="Previous page"
+                className="flex items-center justify-center w-7 h-7 rounded-lg border border-border/60 text-muted-foreground hover:text-foreground hover:bg-accent/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                disabled={page === 1 || isPending}
+                onClick={() => fetchPage(page - 1)}
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-xs text-muted-foreground px-1">{page} / {data.totalPages}</span>
+              <button
+                aria-label="Next page"
+                className="flex items-center justify-center w-7 h-7 rounded-lg border border-border/60 text-muted-foreground hover:text-foreground hover:bg-accent/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                disabled={page === data.totalPages || isPending}
+                onClick={() => fetchPage(page + 1)}
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

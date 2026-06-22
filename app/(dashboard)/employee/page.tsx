@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getAuthContext } from "@/services/auth.service";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { EmployeeTabs } from "@/components/employee/employee-tabs";
+import { unwrap, unwrapCount } from "@/lib/supabase/query";
 import type {
   AttendanceRecord,
   LeaveRequest,
@@ -86,11 +87,11 @@ export default async function EmployeeDashboard() {
   ]);
 
   // ── Derive summary stats ──────────────────────────────────
-  const todayRecord = (todayAttRes.data ?? null) as AttendanceRecord | null;
+  const todayRecord = unwrap(todayAttRes, "today's attendance") as AttendanceRecord | null;
 
-  const presentDays = presentDaysRes.count ?? 0;
-  const totalLeaves = totalLeavesRes.count ?? 0;
-  const pendingTasks = pendingTasksRes.count ?? 0;
+  const presentDays = unwrapCount(presentDaysRes, "present days count");
+  const totalLeaves = unwrapCount(totalLeavesRes, "approved leaves count");
+  const pendingTasks = unwrapCount(pendingTasksRes, "pending tasks count");
 
   const todayHours =
     todayRecord?.total_hours != null
@@ -99,9 +100,9 @@ export default async function EmployeeDashboard() {
       ? "In progress"
       : "—";
 
-  const attendanceHistory = (attendanceHistRes.data ?? []) as AttendanceRecord[];
-  const leaveHistory = (leaveHistRes.data ?? []) as LeaveRequest[];
-  const tasks = (tasksRes.data ?? []) as DailyTask[];
+  const attendanceHistory = unwrap(attendanceHistRes, "attendance history") as AttendanceRecord[];
+  const leaveHistory = unwrap(leaveHistRes, "leave history") as LeaveRequest[];
+  const tasks = unwrap(tasksRes, "tasks") as DailyTask[];
 
   return (
     <DashboardLayout

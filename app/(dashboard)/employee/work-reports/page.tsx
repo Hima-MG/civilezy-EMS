@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getAuthContext } from "@/services/auth.service";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { WorkReportsView } from "@/components/work-reports/work-reports-view";
+import { unwrap } from "@/lib/supabase/query";
 import type { EmployeeCategory, WorkReport } from "@/types";
 
 export const metadata: Metadata = { title: "Work Reports" };
@@ -23,7 +24,7 @@ export default async function EmployeeWorkReportsPage() {
       .order("report_date", { ascending: false })
       .order("created_at", { ascending: false });
 
-  const reports = (reportsResult.data ?? []) as WorkReport[];
+  const reports = unwrap(reportsResult, "work reports") as WorkReport[];
 
   return (
     <DashboardLayout

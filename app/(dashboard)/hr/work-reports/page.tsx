@@ -1,50 +1,42 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/services/auth.service";
-import { getRoleDashboardPath } from "@/lib/utils";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { AdminWorkReportsView } from "@/components/work-reports/admin-work-reports-view";
-import type { UserProfile, WorkReport, WorkReportWithProfile } from "@/types";
+import { loadWorkReportsPage } from "@/lib/queries/work-reports";
 
 export const metadata: Metadata = { title: "Work Reports – HR" };
 export const dynamic = "force-dynamic";
 
-export default async function HrWorkReportsPage() {
+interface HrWorkReportsPageProps {
+  searchParams: Promise<{
+    page?: string;
+    employee?: string;
+    category?: string;
+    status?: string;
+    approval?: string;
+    date?: string;
+  }>;
+}
+
+export default async function HrWorkReportsPage({ searchParams }: HrWorkReportsPageProps) {
   const { supabase, user, profile: userProfile, role } = await getAuthContext();
 
   if (!user || !userProfile || !role || userProfile.is_active === false) {
     redirect("/login");
   }
 
-  if (role !== "hr_finance" && role !== "admin") {
-    redirect(getRoleDashboardPath(role));
-  }
+  // Role gate is centralized in app/(dashboard)/hr/layout.tsx
 
-  const [reportsResult, profilesResult] = await Promise.all([
-    supabase
-      .from("work_reports")
-      .select("*")
-      .order("report_date", { ascending: false })
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("profiles")
-      .select("id, full_name, email, employee_category")
-      .eq("is_active", true)
-      .order("full_name"),
-  ]);
-
-  const rawReports = (reportsResult.data ?? []) as WorkReport[];
-  const allProfiles = (profilesResult.data ?? []) as Pick<
-    UserProfile,
-    "id" | "full_name" | "email" | "employee_category"
-  >[];
-
-  const profileMap = new Map(allProfiles.map((p) => [p.id, p]));
-  const reports: WorkReportWithProfile[] = rawReports.map((r) => ({
-    ...r,
-    full_name: profileMap.get(r.user_id)?.full_name ?? "Unknown",
-    email: profileMap.get(r.user_id)?.email ?? "",
-  }));
+  const params = await searchParams;
+  const { reports, pagination, employees, aggregates } = await loadWorkReportsPage(supabase, {
+    page: params.page ? parseInt(params.page, 10) : 1,
+    employeeId: params.employee,
+    category: params.category,
+    status: params.status,
+    approvalStatus: params.approval,
+    reportDate: params.date,
+  });
 
   return (
     <DashboardLayout
@@ -53,7 +45,19 @@ export default async function HrWorkReportsPage() {
       title="Work Reports"
       description="All employee work reports"
     >
-      <AdminWorkReportsView reports={reports} employees={allProfiles} />
+      <AdminWorkReportsView
+        reports={reports}
+        employees={employees}
+        pagination={pagination}
+        aggregates={aggregates}
+        filters={{
+          employee: params.employee ?? "all",
+          category: params.category ?? "all",
+          status: params.status ?? "all",
+          approval: params.approval ?? "all",
+          date: params.date ?? "",
+        }}
+      />
     </DashboardLayout>
   );
 }

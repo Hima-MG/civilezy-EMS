@@ -202,6 +202,7 @@ export interface AdminActivityItem {
 // ── Work Reports Module ──────────────────────────────────────
 
 export type WorkReportStatus = "pending" | "in_progress" | "completed";
+export type WorkReportApprovalStatus = "pending" | "approved" | "rejected";
 
 export interface WorkReport {
   id: string;
@@ -212,6 +213,10 @@ export interface WorkReport {
   description: string | null;
   hours_spent: number;
   status: WorkReportStatus;
+  approval_status: WorkReportApprovalStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
   report_date: string;
   created_at: string;
   updated_at: string;
@@ -220,4 +225,25 @@ export interface WorkReport {
 export interface WorkReportWithProfile extends WorkReport {
   full_name: string;
   email: string;
+}
+
+// ── EzyCourse Integration (discovery phase) ──────────────────
+
+export interface WebhookLog {
+  id: string;
+  source: string;
+  event_type: string | null;
+  payload: unknown;
+  headers: Record<string, string>;
+  processed: boolean;
+  created_at: string;
+}
+
+export interface WorkReportReview {
+  id: string;
+  work_report_id: string;
+  action: "approved" | "rejected";
+  reviewed_by: string;
+  note: string | null;
+  created_at: string;
 }

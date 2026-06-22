@@ -66,9 +66,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 // ── Pipeline strip ────────────────────────────────────────────
 
-function PipelineStrip({ leads }: { leads: Lead[] }) {
-  const total = leads.length;
-
+function PipelineStrip({ statusCountsByStage, total }: { statusCountsByStage: Record<LeadStatus, number>; total: number }) {
   return (
     <div className="relative rounded-2xl border border-border/60 bg-card shadow-sm overflow-hidden">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/8 to-transparent pointer-events-none" />
@@ -82,7 +80,7 @@ function PipelineStrip({ leads }: { leads: Lead[] }) {
       <div className="flex divide-x divide-border/40 overflow-x-auto">
         {PIPELINE_STAGES.map((stage) => {
           const cfg   = LEAD_STATUS_CONFIG[stage];
-          const count = leads.filter((l) => l.status === stage).length;
+          const count = statusCountsByStage[stage] ?? 0;
           const pct   = total > 0 ? Math.round((count / total) * 100) : 0;
 
           return (
@@ -173,45 +171,56 @@ interface Analytics {
 interface StatusDataPoint  { status: string; count: number }
 interface MonthlyDataPoint { month: string;  count: number }
 
+interface PaginationMeta {
+  page: number;
+  totalPages: number;
+  total: number;
+  pageSize: number;
+}
+
 interface CreTabsProps {
   leads: Lead[];
+  followupLeads: Lead[];
   notesMap: Record<string, LeadNote[]>;
-  allNotes: LeadNote[];
+  recentNotes: (LeadNote & { leads: { name: string } | null })[];
+  totalNotesCount: number;
   analytics: Analytics;
   statusData: StatusDataPoint[];
+  statusCountsByStage: Record<LeadStatus, number>;
   monthlyData: MonthlyDataPoint[];
   profile: UserProfile;
+  pagination: PaginationMeta;
+  search: string;
+  statusFilter: LeadStatus | null;
 }
 
 // ── Main component ────────────────────────────────────────────
 
 export function CreTabs({
   leads,
+  followupLeads,
   notesMap,
-  allNotes,
+  recentNotes,
+  totalNotesCount,
   analytics,
   statusData,
+  statusCountsByStage,
   monthlyData,
   profile,
+  pagination,
+  search,
+  statusFilter,
 }: CreTabsProps) {
   const [activeTab, setActiveTab] = useUrlTab(VALID_TABS, "overview");
-  const followupLeads = leads.filter((l) => l.status === "follow_up");
 
-  // Lead lookup map for notes timeline
-  const leadMap = Object.fromEntries(leads.map((l) => [l.id, l]));
-
-  // Build activity items from allNotes
-  const noteActivities: ActivityItem[] = allNotes.slice(0, 30).map((n) => {
-    const lead = leadMap[n.lead_id];
-    return {
-      id:          n.id,
-      title:       lead?.name ?? `Lead ${n.lead_id.slice(0, 6)}…`,
-      description: n.note,
-      timestamp:   fmtRelative(n.created_at),
-      accent:      "info" as const,
-      status:      lead ? undefined : undefined,
-    };
-  });
+  // Build activity items from the recent-notes timeline (server-bounded to 30)
+  const noteActivities: ActivityItem[] = recentNotes.map((n) => ({
+    id:          n.id,
+    title:       n.leads?.name ?? `Lead ${n.lead_id.slice(0, 6)}…`,
+    description: n.note,
+    timestamp:   fmtRelative(n.created_at),
+    accent:      "info" as const,
+  }));
 
   const firstName = profile.full_name?.split(" ")[0] ?? "there";
 
@@ -277,7 +286,7 @@ export function CreTabs({
         </div>
 
         {/* Pipeline stage breakdown */}
-        <PipelineStrip leads={leads} />
+        <PipelineStrip statusCountsByStage={statusCountsByStage} total={analytics.totalLeads} />
 
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -288,7 +297,13 @@ export function CreTabs({
 
       {/* ─────────────── LEADS ────────────────────────────── */}
       <TabsContent value="leads" className="mt-0">
-        <LeadsTable leads={leads} notesMap={notesMap} />
+        <LeadsTable
+          leads={leads}
+          notesMap={notesMap}
+          pagination={pagination}
+          search={search}
+          statusFilter={statusFilter}
+        />
       </TabsContent>
 
       {/* ─────────────── FOLLOW-UPS ───────────────────────── */}
@@ -328,11 +343,11 @@ export function CreTabs({
         <div className="flex items-center justify-between">
           <SectionLabel>Activity timeline</SectionLabel>
           <span className="text-xs text-muted-foreground -mt-1">
-            {allNotes.length} note{allNotes.length !== 1 ? "s" : ""}
+            {totalNotesCount} note{totalNotesCount !== 1 ? "s" : ""}
           </span>
         </div>
 
-        {allNotes.length === 0 ? (
+        {recentNotes.length === 0 ? (
           <EmptyState
             icon={MessageSquare}
             title="No notes yet"
@@ -359,7 +374,7 @@ export function CreTabs({
           <KpiCard title="Conversion Rate"   value={`${analytics.conversionRate}%`} subtitle="Overall"      icon={TrendingUp} accent={analytics.conversionRate >= 30 ? "green" : "yellow"} />
         </div>
 
-        <PipelineStrip leads={leads} />
+        <PipelineStrip statusCountsByStage={statusCountsByStage} total={analytics.totalLeads} />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <StatusChart  data={statusData} />
@@ -381,7 +396,7 @@ export function CreTabs({
               </thead>
               <tbody>
                 {PIPELINE_STAGES.map((stage) => {
-                  const count = leads.filter((l) => l.status === stage).length;
+                  const count = statusCountsByStage[stage] ?? 0;
                   const pct   = analytics.totalLeads > 0 ? Math.round((count / analytics.totalLeads) * 100) : 0;
                   return (
                     <tr key={stage} className="border-b border-border/30 last:border-0 hover:bg-accent/20 transition-colors">

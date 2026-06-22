@@ -248,6 +248,7 @@ export function UserManagement({ users, currentUserId }: UserManagementProps) {
                                     : "text-muted-foreground hover:text-emerald-500"
                                 )}
                                 title={user.is_active ? "Deactivate account" : "Activate account"}
+                                aria-label={user.is_active ? "Deactivate account" : "Activate account"}
                                 disabled={isPending}
                                 onClick={() => handleToggleActive(user.id, user.is_active)}
                               >

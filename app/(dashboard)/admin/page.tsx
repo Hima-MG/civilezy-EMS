@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/services/auth.service";
-import { getRoleDashboardPath } from "@/lib/utils";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { AdminTabs } from "@/components/admin/admin-tabs";
+import { unwrap } from "@/lib/supabase/query";
 import type {
   UserProfile,
   AttendanceRecord,
@@ -67,7 +67,7 @@ export default async function AdminDashboard() {
     redirect("/login");
   }
 
-  if (role !== "admin") redirect(getRoleDashboardPath(role));
+  // Role gate is centralized in app/(dashboard)/admin/layout.tsx
 
   // ── Date helpers (before Promise.all — used in query filters) ─
   const now = new Date();
@@ -121,11 +121,11 @@ export default async function AdminDashboard() {
       .order("created_at", { ascending: false }),
   ]);
 
-  const allProfiles = (profilesResult.data ?? []) as UserProfile[];
-  const rawAttendance = (attendanceResult.data ?? []) as AttendanceRecord[];
-  const rawLeaves = (leavesResult.data ?? []) as LeaveRequest[];
-  const rawSalary = (salaryResult.data ?? []) as SalaryRecord[];
-  const rawLeads = (leadsResult.data ?? []) as Lead[];
+  const allProfiles = unwrap(profilesResult, "profiles") as UserProfile[];
+  const rawAttendance = unwrap(attendanceResult, "attendance") as AttendanceRecord[];
+  const rawLeaves = unwrap(leavesResult, "leave requests") as LeaveRequest[];
+  const rawSalary = unwrap(salaryResult, "salary records") as SalaryRecord[];
+  const rawLeads = unwrap(leadsResult, "leads") as Lead[];
 
   // ── Profile lookup map ─────────────────────────────────────
   const profileMap = new Map(allProfiles.map((p) => [p.id, p]));

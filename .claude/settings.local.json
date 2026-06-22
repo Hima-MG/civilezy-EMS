@@ -16,7 +16,13 @@
       "PowerShell(cd \"C:\\\\Users\\\\Hima Girish\\\\Desktop\\\\civilezy\\\\civilEzy CRE-EMS\\\\civilezy-ems\"; \\(Get-Content package.json | ConvertFrom-Json\\).scripts)",
       "PowerShell(cd \"C:\\\\Users\\\\Hima Girish\\\\Desktop\\\\civilezy\\\\civilEzy CRE-EMS\\\\civilezy-ems\"; [System.Environment]::GetEnvironmentVariable\\(\"NEXT_TURBOPACK\"\\); [System.Environment]::GetEnvironmentVariable\\(\"TURBOPACK\"\\))",
       "Bash(node -e \"const v=require\\('./node_modules/next/package.json'\\).version; console.log\\('next version:', v\\)\")",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(xargs -I{} echo {})",
+      "Bash(npx eslint *)",
+      "Bash(npm run *)",
+      "Bash(mkdir -p \"C:/Users/Hima Girish/Desktop/civilezy/civilEzy CRE-EMS/civilezy-ems/app/api/webhooks/ezycourse/[secret]\")",
+      "Bash(grep -n \"EZYCOURSE\" .env.local)",
+      "Bash(echo \"exit:$?\")"
     ]
   }
 }

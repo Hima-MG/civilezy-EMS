@@ -33,6 +33,7 @@ const adminNav: NavItem[] = [
   { title: "Overview",   href: "/admin",                  icon: "LayoutDashboard" },
   { title: "Employees",  href: "/admin?tab=employees",    icon: "UserCheck" },
   { title: "Work Audit", href: "/admin/work-reports",     icon: "ClipboardList" },
+  { title: "EzyCourse",  href: "/admin/ezycourse",        icon: "Webhook" },
   { title: "Students",   href: "/admin?tab=students",     icon: "GraduationCap" },
   { title: "Renewals",   href: "/admin?tab=renewals",     icon: "RefreshCw" },
   { title: "Finance",    href: "/admin?tab=finance",      icon: "DollarSign" },

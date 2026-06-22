@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/services/auth.service";
-import { getRoleDashboardPath } from "@/lib/utils";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { HrTabs } from "@/components/hr/hr-tabs";
+import { getAttendancePageAction } from "@/actions/hr/attendance";
+import { unwrap } from "@/lib/supabase/query";
 import type {
   UserProfile,
   AttendanceRecord,
@@ -27,9 +28,7 @@ export default async function HRDashboard() {
     redirect("/login");
   }
 
-  if (role !== "hr_finance" && role !== "admin") {
-    redirect(getRoleDashboardPath(role));
-  }
+  // Role gate is centralized in app/(dashboard)/hr/layout.tsx
 
   // ── Date helpers (before Promise.all — used in query filters) ─
   const now = new Date();
@@ -101,14 +100,14 @@ export default async function HRDashboard() {
         .limit(50),
     ]);
 
-  const allProfiles = (profilesResult.data ?? []) as UserProfile[];
-  const rawAttendance = (attendanceResult.data ?? []) as AttendanceRecord[];
-  const rawLeaves = (leavesResult.data ?? []) as LeaveRequest[];
-  const rawSalary = (salaryResult.data ?? []) as SalaryRecord[];
+  const allProfiles = unwrap(profilesResult, "profiles") as UserProfile[];
+  const rawAttendance = unwrap(attendanceResult, "attendance") as AttendanceRecord[];
+  const rawLeaves = unwrap(leavesResult, "leave requests") as LeaveRequest[];
+  const rawSalary = unwrap(salaryResult, "salary records") as SalaryRecord[];
 
-  const hrTodayRecord = (hrTodayAttRes.data ?? null) as AttendanceRecord | null;
-  const hrAttendanceHistory = (hrAttHistRes.data ?? []) as AttendanceRecord[];
-  const hrLeaveHistory = (hrLeaveHistRes.data ?? []) as LeaveRequest[];
+  const hrTodayRecord = unwrap(hrTodayAttRes, "today's attendance") as AttendanceRecord | null;
+  const hrAttendanceHistory = unwrap(hrAttHistRes, "your attendance history") as AttendanceRecord[];
+  const hrLeaveHistory = unwrap(hrLeaveHistRes, "your leave history") as LeaveRequest[];
 
   // Employee-only profiles for dropdowns (exclude admin / hr from lists)
   const employeeProfiles = allProfiles.filter(
@@ -178,6 +177,13 @@ export default async function HRDashboard() {
     }
   );
 
+  // First page of the org-wide attendance tab — subsequent pages/filters
+  // are fetched on demand via getAttendancePageAction from the client.
+  const attendancePageResult = await getAttendancePageAction({ month: currentMonth, page: 1 });
+  if (!attendancePageResult.success) {
+    throw new Error(`Failed to load attendance page: ${attendancePageResult.error}`);
+  }
+
   return (
     <DashboardLayout
       profile={userProfile}
@@ -188,6 +194,7 @@ export default async function HRDashboard() {
       <HrTabs
         profiles={employeeProfiles}
         attendance={attendance}
+        attendanceInitialPage={attendancePageResult.data}
         leaves={leaves}
         salaryRecords={salaryRecords}
         analytics={analytics}

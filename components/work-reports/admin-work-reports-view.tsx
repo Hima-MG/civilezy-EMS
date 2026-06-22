@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Clock, FileText, Users } from "lucide-react";
+import { useCallback, useTransition } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { Clock, FileText, Users, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -10,46 +11,64 @@ import { AdminWorkReportTable } from "./work-report-table";
 import { CATEGORY_LABELS } from "./constants";
 import { cn } from "@/lib/utils";
 import type { EmployeeCategory, UserProfile, WorkReportWithProfile } from "@/types";
+import type { PaginationMeta, WorkReportAggregates } from "@/lib/queries/work-reports";
+
+interface Filters {
+  employee: string;
+  category: string;
+  status: string;
+  approval: string;
+  date: string;
+}
 
 interface AdminWorkReportsViewProps {
   reports: WorkReportWithProfile[];
   employees: Pick<UserProfile, "id" | "full_name" | "email" | "employee_category">[];
+  pagination: PaginationMeta;
+  aggregates: WorkReportAggregates;
+  filters: Filters;
 }
 
-export function AdminWorkReportsView({ reports }: AdminWorkReportsViewProps) {
-  const [employeeFilter, setEmployeeFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [dateFilter,     setDateFilter]     = useState("");
-  const [statusFilter,   setStatusFilter]   = useState("all");
+// Filtering and pagination are server-driven via URL params — the page
+// component re-queries Supabase with .range()/.eq() rather than fetching
+// the whole work_reports table and filtering it in the browser.
+export function AdminWorkReportsView({ reports, employees, pagination, aggregates, filters }: AdminWorkReportsViewProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
 
-  const filtered = useMemo(() => reports.filter((r) => {
-    if (employeeFilter !== "all" && r.user_id !== employeeFilter) return false;
-    if (categoryFilter !== "all" && r.category !== categoryFilter) return false;
-    if (statusFilter !== "all" && r.status !== statusFilter) return false;
-    if (dateFilter && r.report_date !== dateFilter) return false;
-    return true;
-  }), [reports, employeeFilter, categoryFilter, statusFilter, dateFilter]);
+  const navigate = useCallback(
+    (updates: Record<string, string | null>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(updates)) {
+        if (value === null || value === "all" || value === "") params.delete(key);
+        else params.set(key, value);
+      }
+      startTransition(() => router.push(`${pathname}?${params.toString()}`));
+    },
+    [router, pathname, searchParams]
+  );
 
-  const totalHours      = useMemo(() => filtered.reduce((s, r) => s + r.hours_spent, 0), [filtered]);
-  const uniqueEmployees = useMemo(() => {
-    const seen = new Set<string>();
-    return reports.filter((r) => { if (seen.has(r.user_id)) return false; seen.add(r.user_id); return true; })
-      .map((r) => ({ id: r.user_id, full_name: r.full_name }));
-  }, [reports]);
-
-  const hasFilters = employeeFilter !== "all" || categoryFilter !== "all" || dateFilter !== "" || statusFilter !== "all";
+  const hasFilters = filters.employee !== "all" || filters.category !== "all"
+    || filters.date !== "" || filters.status !== "all" || filters.approval !== "all";
 
   const METRICS = [
-    { icon: Clock,      label: "Total hours",          value: `${totalHours.toFixed(1)}h`,       color: "text-primary" },
-    { icon: FileText,   label: "Reports shown",        value: String(filtered.length),            color: "text-blue-500" },
-    { icon: Users,      label: "Employees reporting",  value: String(uniqueEmployees.length),     color: "text-violet-500" },
+    { icon: Clock,    label: "Total hours",         value: `${aggregates.totalHours.toFixed(1)}h`, color: "text-primary" },
+    { icon: FileText, label: "Reports matching",     value: String(pagination.total),                color: "text-blue-500" },
+    { icon: Users,    label: "Employees reporting",  value: String(aggregates.uniqueEmployees),       color: "text-violet-500" },
   ];
 
   return (
     <div className="space-y-5">
 
       {/* Metric strip */}
-      <div className="rounded-2xl border border-border/60 bg-card overflow-hidden shadow-sm">
+      <div className="relative rounded-2xl border border-border/60 bg-card overflow-hidden shadow-sm">
+        {isPending && (
+          <div className="absolute inset-0 bg-background/40 backdrop-blur-[1px] z-10 flex items-center justify-center">
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+          </div>
+        )}
         <div className="flex divide-x divide-border/40">
           {METRICS.map(({ icon: Icon, label, value, color }) => (
             <div key={label} className="flex-1 flex items-center gap-3 px-5 py-4">
@@ -67,19 +86,19 @@ export function AdminWorkReportsView({ reports }: AdminWorkReportsViewProps) {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
+        <Select value={filters.employee} onValueChange={(v) => navigate({ employee: v, page: null })}>
           <SelectTrigger className="h-9 w-44 bg-muted/40 border-border/60 rounded-xl focus:ring-0 text-sm">
             <SelectValue placeholder="All employees" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All employees</SelectItem>
-            {uniqueEmployees.map((e) => (
+            {employees.map((e) => (
               <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+        <Select value={filters.category} onValueChange={(v) => navigate({ category: v, page: null })}>
           <SelectTrigger className="h-9 w-40 bg-muted/40 border-border/60 rounded-xl focus:ring-0 text-sm">
             <SelectValue placeholder="All categories" />
           </SelectTrigger>
@@ -91,7 +110,7 @@ export function AdminWorkReportsView({ reports }: AdminWorkReportsViewProps) {
           </SelectContent>
         </Select>
 
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={filters.status} onValueChange={(v) => navigate({ status: v, page: null })}>
           <SelectTrigger className="h-9 w-36 bg-muted/40 border-border/60 rounded-xl focus:ring-0 text-sm">
             <SelectValue placeholder="All status" />
           </SelectTrigger>
@@ -103,32 +122,44 @@ export function AdminWorkReportsView({ reports }: AdminWorkReportsViewProps) {
           </SelectContent>
         </Select>
 
+        <Select value={filters.approval} onValueChange={(v) => navigate({ approval: v, page: null })}>
+          <SelectTrigger className="h-9 w-40 bg-muted/40 border-border/60 rounded-xl focus:ring-0 text-sm">
+            <SelectValue placeholder="All reviews" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All reviews</SelectItem>
+            <SelectItem value="pending">Awaiting Review</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="rejected">Rejected</SelectItem>
+          </SelectContent>
+        </Select>
+
         <Input
           type="date"
           className={cn(
             "h-9 w-36 bg-muted/40 border-border/60 rounded-xl focus-visible:ring-0 focus-visible:border-border text-sm",
-            dateFilter && "border-primary/40"
+            filters.date && "border-primary/40"
           )}
-          value={dateFilter}
-          onChange={(e) => setDateFilter(e.target.value)}
+          value={filters.date}
+          onChange={(e) => navigate({ date: e.target.value, page: null })}
         />
 
         {hasFilters && (
           <>
             <button
               className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1"
-              onClick={() => { setEmployeeFilter("all"); setCategoryFilter("all"); setDateFilter(""); setStatusFilter("all"); }}
+              onClick={() => navigate({ employee: null, category: null, date: null, status: null, approval: null, page: null })}
             >
               Clear filters
             </button>
             <p className="text-xs text-muted-foreground">
-              {filtered.length} of {reports.length} shown
+              {pagination.total} matching
             </p>
           </>
         )}
       </div>
 
-      <AdminWorkReportTable reports={filtered} />
+      <AdminWorkReportTable reports={reports} pagination={pagination} onPageChange={(p) => navigate({ page: p > 1 ? String(p) : null })} isPending={isPending} />
     </div>
   );
 }

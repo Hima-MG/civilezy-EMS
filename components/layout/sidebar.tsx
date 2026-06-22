@@ -11,7 +11,7 @@ import {
   DollarSign, UserPlus, TrendingUp, UserCheck, Target,
   Briefcase, LineChart, Settings, Shield, LogOut,
   ClipboardList, Calendar, CreditCard, ChevronLeft, ChevronRight,
-  Zap, X, GraduationCap, RefreshCw,
+  Zap, X, GraduationCap, RefreshCw, Webhook,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_CONFIG } from "@/lib/nav-config";
@@ -36,7 +36,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   LayoutDashboard, User, Clock, CalendarOff, FileText, CheckSquare,
   Users, Building2, MapPin, Phone, BarChart2, DollarSign, UserPlus,
   TrendingUp, UserCheck, Target, Briefcase, LineChart, Settings, Shield,
-  ClipboardList, Calendar, CreditCard, GraduationCap, RefreshCw,
+  ClipboardList, Calendar, CreditCard, GraduationCap, RefreshCw, Webhook,
 };
 
 // ── Role badge styles ─────────────────────────────────────────
